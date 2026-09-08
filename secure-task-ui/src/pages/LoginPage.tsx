@@ -1,0 +1,3 @@
+export function LoginPage({ onLogin }: { onLogin: () => void }) {
+  return <main className="login-page"><section className="login-card"><div className="brand center"><div className="brand-mark">S</div><div><strong>SecureFlow</strong><span>Task & Document Manager</span></div></div><h1>Welcome back</h1><p>Sign in to manage secure tasks, files, and audit history.</p><label>Email<input defaultValue="joshua@example.com" /></label><label>Password<input type="password" defaultValue="password" /></label><button className="primary-button" onClick={onLogin}>Login</button><a>Forgot password?</a></section></main>;
+}
