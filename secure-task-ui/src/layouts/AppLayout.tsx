@@ -1,9 +1,22 @@
-import React from 'react';
+import { type ReactNode } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
-import { RouteName } from '../main';
-import { currentUser } from '../data/mockData';
+import type { RouteName } from '../main';
+import { currentUser, notifications } from '../data/mockData';
 
-const navItems: Array<{ route: RouteName; label: string; icon: React.ReactNode; adminOnly?: boolean }> = [
+type NavigationItem = {
+  route: RouteName;
+  label: string;
+  icon: ReactNode;
+  adminOnly?: boolean;
+};
+
+type AppLayoutProps = {
+  children: ReactNode;
+  route: RouteName;
+  onNavigate: (route: RouteName) => void;
+};
+
+const navItems: NavigationItem[] = [
   { route: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { route: 'tasks', label: 'Tasks', icon: <CheckSquare size={18} /> },
   { route: 'documents', label: 'Documents', icon: <FileText size={18} /> },
@@ -14,12 +27,14 @@ const navItems: Array<{ route: RouteName; label: string; icon: React.ReactNode; 
   { route: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
-export function AppLayout({ children, route, onNavigate }: { children: React.ReactNode; route: RouteName; onNavigate: (route: RouteName) => void }) {
+export function AppLayout({ children, route, onNavigate }: AppLayoutProps) {
   const visibleNav = navItems.filter((item) => !item.adminOnly || currentUser.role === 'Admin');
+  const unreadNotifications = notifications.filter((notification) => notification.unread).length;
+  const userInitial = currentUser.name.trim().charAt(0).toUpperCase();
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="Application navigation">
         <div className="brand">
           <div className="brand-mark">S</div>
           <div>
@@ -28,30 +43,45 @@ export function AppLayout({ children, route, onNavigate }: { children: React.Rea
           </div>
         </div>
 
-        <nav>
+        <nav aria-label="Main navigation">
           {visibleNav.map((item) => (
-            <button key={item.route} className={`nav-item ${route === item.route ? 'active' : ''}`} onClick={() => onNavigate(item.route)}>
+            <button
+              key={item.route}
+              type="button"
+              className={`nav-item ${route === item.route ? 'active' : ''}`}
+              aria-current={route === item.route ? 'page' : undefined}
+              onClick={() => onNavigate(item.route)}
+            >
               {item.icon}
               {item.label}
             </button>
           ))}
         </nav>
 
-        <button className="nav-item logout" onClick={() => onNavigate('login')}>
+        <button type="button" className="nav-item logout" onClick={() => onNavigate('login')}>
           <LogOut size={18} /> Logout
         </button>
       </aside>
 
       <main className="main">
         <header className="topbar">
-          <div className="search-box">
+          <label className="search-box">
+            <span className="sr-only">Search tasks, documents, and users</span>
             <Search size={18} />
-            <input placeholder="Search tasks, documents, users..." />
-          </div>
+            <input type="search" placeholder="Search tasks, documents, users..." />
+          </label>
           <div className="top-actions">
-            <button className="icon-button"><Bell size={18} /></button>
+            <button
+              type="button"
+              className="icon-button notification-button"
+              aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ''}`}
+              onClick={() => onNavigate('notifications')}
+            >
+              <Bell size={18} />
+              {unreadNotifications > 0 && <span className="notification-count" aria-hidden="true">{unreadNotifications}</span>}
+            </button>
             <div className="profile-pill">
-              <div className="avatar">J</div>
+              <div className="avatar" aria-hidden="true">{userInitial}</div>
               <div>
                 <strong>{currentUser.name}</strong>
                 <span>{currentUser.role}</span>
