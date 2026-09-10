@@ -13,20 +13,8 @@ import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { tasks, documents } from './data/mockData';
-import './styles.css';
-
-export type RouteName =
-  | 'login'
-  | 'dashboard'
-  | 'tasks'
-  | 'task-detail'
-  | 'documents'
-  | 'document-detail'
-  | 'notifications'
-  | 'audit-logs'
-  | 'users'
-  | 'roles'
-  | 'settings';
+import type { RouteName } from './types';
+import '/home/asiwaju/Documents/secure-task-frontend/secure-task-ui/src/styles.css';
 
 function App() {
   const [route, setRoute] = useState<RouteName>('dashboard');

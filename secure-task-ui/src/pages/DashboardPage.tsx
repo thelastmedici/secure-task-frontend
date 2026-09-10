@@ -3,7 +3,7 @@ import { MetricCard } from '../components/MetricCard';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { documents, notifications, tasks } from '../data/mockData';
-import { RouteName } from '../main';
+import type { RouteName } from '../types';
 
 export function DashboardPage({ onNavigate }: { onNavigate: (route: RouteName) => void }) {
   return (

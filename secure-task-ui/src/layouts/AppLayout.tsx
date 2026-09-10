@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
-import type { RouteName } from '../main';
 import { currentUser, notifications } from '../data/mockData';
+import type { RouteName } from '../types';
 
 type NavigationItem = {
   route: RouteName;

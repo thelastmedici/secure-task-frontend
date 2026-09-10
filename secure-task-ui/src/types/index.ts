@@ -2,6 +2,19 @@ export type Role = 'Admin' | 'Manager' | 'Member';
 export type TaskStatus = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 export type Priority = 'Low' | 'Medium' | 'High';
 
+export type RouteName =
+  | 'login'
+  | 'dashboard'
+  | 'tasks'
+  | 'task-detail'
+  | 'documents'
+  | 'document-detail'
+  | 'notifications'
+  | 'audit-logs'
+  | 'users'
+  | 'roles'
+  | 'settings';
+
 export interface User {
   id: string;
   name: string;
