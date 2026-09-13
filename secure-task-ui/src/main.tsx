@@ -12,17 +12,53 @@ import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
-import { tasks, documents } from './data/mockData';
-import type { RouteName } from './types';
+import { currentUser, tasks as initialTasks, documents as initialDocuments } from './data/mockData';
+import type { RouteName, Task, DocumentItem } from './types';
 import '/home/asiwaju/Documents/secure-task-frontend/secure-task-ui/src/styles.css';
 
 function App() {
   const [route, setRoute] = useState<RouteName>('dashboard');
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [documents, setDocuments] = useState<DocumentItem[]>(initialDocuments);
   const [selectedTaskId, setSelectedTaskId] = useState('t1');
   const [selectedDocumentId, setSelectedDocumentId] = useState('d1');
 
-  const selectedTask = useMemo(() => tasks.find((task) => task.id === selectedTaskId) ?? tasks[0], [selectedTaskId]);
-  const selectedDocument = useMemo(() => documents.find((doc) => doc.id === selectedDocumentId) ?? documents[0], [selectedDocumentId]);
+  const selectedTask = useMemo(() => tasks.find((task) => task.id === selectedTaskId) ?? tasks[0], [tasks, selectedTaskId]);
+  const selectedDocument = useMemo(() => documents.find((doc) => doc.id === selectedDocumentId) ?? documents[0], [documents, selectedDocumentId]);
+
+  const handleCreateTask = () => {
+    const createdAt = new Date();
+    const newTask: Task = {
+      id: `t${createdAt.getTime()}`,
+      title: 'New security review task',
+      description: 'A newly created task for the secure workflow pipeline.',
+      status: 'Pending',
+      priority: 'Medium',
+      assignee: currentUser.name,
+      dueDate: new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    };
+
+    setTasks((previous) => [newTask, ...previous]);
+    setSelectedTaskId(newTask.id);
+    setRoute('task-detail');
+  };
+
+  const handleUploadDocument = () => {
+    const createdAt = new Date();
+    const newDocument: DocumentItem = {
+      id: `d${createdAt.getTime()}`,
+      fileName: `new-upload-${documents.length + 1}.pdf`,
+      type: 'PDF',
+      size: '1.2 MB',
+      uploadedBy: currentUser.name,
+      uploadedAt: createdAt.toISOString().slice(0, 10),
+      linkedTask: 'New security review task',
+    };
+
+    setDocuments((previous) => [newDocument, ...previous]);
+    setSelectedDocumentId(newDocument.id);
+    setRoute('document-detail');
+  };
 
   if (route === 'login') {
     return <LoginPage onLogin={() => setRoute('dashboard')} />;
@@ -30,10 +66,10 @@ function App() {
 
   return (
     <AppLayout route={route} onNavigate={setRoute}>
-      {route === 'dashboard' && <DashboardPage onNavigate={setRoute} />}
-      {route === 'tasks' && <TasksPage onOpenTask={(id) => { setSelectedTaskId(id); setRoute('task-detail'); }} />}
-      {route === 'task-detail' && <TaskDetailPage task={selectedTask} onBack={() => setRoute('tasks')} />}
-      {route === 'documents' && <DocumentsPage onOpenDocument={(id) => { setSelectedDocumentId(id); setRoute('document-detail'); }} />}
+      {route === 'dashboard' && <DashboardPage tasks={tasks} documents={documents} onNavigate={setRoute} />}
+      {route === 'tasks' && <TasksPage tasks={tasks} onOpenTask={(id) => { setSelectedTaskId(id); setRoute('task-detail'); }} onCreateTask={handleCreateTask} />}
+      {route === 'task-detail' && <TaskDetailPage documents={documents} task={selectedTask} onBack={() => setRoute('tasks')} />}
+      {route === 'documents' && <DocumentsPage documents={documents} onOpenDocument={(id) => { setSelectedDocumentId(id); setRoute('document-detail'); }} onUploadDocument={handleUploadDocument} />}
       {route === 'document-detail' && <DocumentDetailPage document={selectedDocument} onBack={() => setRoute('documents')} />}
       {route === 'notifications' && <NotificationsPage />}
       {route === 'audit-logs' && <AuditLogsPage />}

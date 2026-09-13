@@ -2,10 +2,18 @@ import { Bell, CheckCircle, Clock, FileText } from 'lucide-react';
 import { MetricCard } from '../components/MetricCard';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
-import { documents, notifications, tasks } from '../data/mockData';
-import type { RouteName } from '../types';
+import { notifications } from '../data/mockData';
+import type { DocumentItem, RouteName, Task } from '../types';
 
-export function DashboardPage({ onNavigate }: { onNavigate: (route: RouteName) => void }) {
+export function DashboardPage({
+  tasks,
+  documents,
+  onNavigate,
+}: {
+  tasks: Task[];
+  documents: DocumentItem[];
+  onNavigate: (route: RouteName) => void;
+}) {
   return (
     <>
       <PageHeader title="Dashboard" description="Monitor tasks, documents, notifications, and activity from one secure workspace." />
