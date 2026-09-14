@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
-import { currentUser, notifications } from '../data/mockData';
-import type { RouteName } from '../types';
+import { currentUser } from '../data/mockData';
+import type { RouteName, NotificationItem } from '../types';
 
 type NavigationItem = {
   route: RouteName;
@@ -14,6 +14,8 @@ type AppLayoutProps = {
   children: ReactNode;
   route: RouteName;
   onNavigate: (route: RouteName) => void;
+  notifications?: NotificationItem[];
+  onMarkAllRead?: () => void;
 };
 
 const navItems: NavigationItem[] = [
@@ -27,9 +29,9 @@ const navItems: NavigationItem[] = [
   { route: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
-export function AppLayout({ children, route, onNavigate }: AppLayoutProps) {
+export function AppLayout({ children, route, onNavigate, notifications, onMarkAllRead }: AppLayoutProps) {
   const visibleNav = navItems.filter((item) => !item.adminOnly || currentUser.role === 'Admin');
-  const unreadNotifications = notifications.filter((notification) => notification.unread).length;
+  const unreadNotifications = (notifications ?? []).filter((notification) => notification.unread).length;
   const userInitial = currentUser.name.trim().charAt(0).toUpperCase();
 
   return (
@@ -80,6 +82,9 @@ export function AppLayout({ children, route, onNavigate }: AppLayoutProps) {
               <Bell size={18} />
               {unreadNotifications > 0 && <span className="notification-count" aria-hidden="true">{unreadNotifications}</span>}
             </button>
+            {unreadNotifications > 0 && onMarkAllRead && (
+              <button type="button" className="icon-button" onClick={onMarkAllRead} title="Mark all notifications as read">Mark all read</button>
+            )}
             <div className="profile-pill">
               <div className="avatar" aria-hidden="true">{userInitial}</div>
               <div>
