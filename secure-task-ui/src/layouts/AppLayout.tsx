@@ -1,21 +1,13 @@
 import { type ReactNode } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
-import { currentUser } from '../data/mockData';
-import type { RouteName, NotificationItem } from '../types';
+import { useAppController } from '../core/AppContext';
+import type { RouteName } from '../types';
 
 type NavigationItem = {
   route: RouteName;
   label: string;
   icon: ReactNode;
   adminOnly?: boolean;
-};
-
-type AppLayoutProps = {
-  children: ReactNode;
-  route: RouteName;
-  onNavigate: (route: RouteName) => void;
-  notifications?: NotificationItem[];
-  onMarkAllRead?: () => void;
 };
 
 const navItems: NavigationItem[] = [
@@ -29,10 +21,12 @@ const navItems: NavigationItem[] = [
   { route: 'settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
-export function AppLayout({ children, route, onNavigate, notifications, onMarkAllRead }: AppLayoutProps) {
-  const visibleNav = navItems.filter((item) => !item.adminOnly || currentUser.role === 'Admin');
-  const unreadNotifications = (notifications ?? []).filter((notification) => notification.unread).length;
-  const userInitial = currentUser.name.trim().charAt(0).toUpperCase();
+export function AppLayout({ children }: { children: ReactNode }) {
+  const controller = useAppController();
+  const route = controller.route;
+  const visibleNav = navItems.filter((item) => !item.adminOnly || controller.user.isAdmin());
+  const unreadNotifications = controller.notifications.filter((notification) => notification.unread).length;
+  const userInitial = controller.user.name.trim().charAt(0).toUpperCase();
 
   return (
     <div className="app-shell">
@@ -52,7 +46,7 @@ export function AppLayout({ children, route, onNavigate, notifications, onMarkAl
               type="button"
               className={`nav-item ${route === item.route ? 'active' : ''}`}
               aria-current={route === item.route ? 'page' : undefined}
-              onClick={() => onNavigate(item.route)}
+              onClick={() => controller.navigate(item.route)}
             >
               {item.icon}
               {item.label}
@@ -60,7 +54,7 @@ export function AppLayout({ children, route, onNavigate, notifications, onMarkAl
           ))}
         </nav>
 
-        <button type="button" className="nav-item logout" onClick={() => onNavigate('login')}>
+        <button type="button" className="nav-item logout" onClick={() => controller.navigate('login')}>
           <LogOut size={18} /> Logout
         </button>
       </aside>
@@ -77,19 +71,19 @@ export function AppLayout({ children, route, onNavigate, notifications, onMarkAl
               type="button"
               className="icon-button notification-button"
               aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ''}`}
-              onClick={() => onNavigate('notifications')}
+              onClick={() => controller.navigate('notifications')}
             >
               <Bell size={18} />
               {unreadNotifications > 0 && <span className="notification-count" aria-hidden="true">{unreadNotifications}</span>}
             </button>
-            {unreadNotifications > 0 && onMarkAllRead && (
-              <button type="button" className="icon-button" onClick={onMarkAllRead} title="Mark all notifications as read">Mark all read</button>
+            {unreadNotifications > 0 && (
+              <button type="button" className="icon-button" onClick={() => controller.markAllNotificationsRead()} title="Mark all notifications as read">Mark all read</button>
             )}
             <div className="profile-pill">
               <div className="avatar" aria-hidden="true">{userInitial}</div>
               <div>
-                <strong>{currentUser.name}</strong>
-                <span>{currentUser.role}</span>
+                <strong>{controller.user.name}</strong>
+                <span>{controller.user.role}</span>
               </div>
             </div>
           </div>
