@@ -56,7 +56,7 @@ function App() {
   };
 
   if (route === 'login') {
-    return <LoginPage onLogin={() => { controller.navigate('dashboard'); }} />;
+    return <LoginPage />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import { currentUser, documents as seedDocuments, notifications as seedNotifications, tasks as seedTasks } from '../data/mockData';
+import { currentUser, documents as seedDocuments, notifications as seedNotifications, tasks as seedTasks, users as seedUsers } from '../data/mockData';
 import { DocumentItem, NotificationItem, Task, User } from '../domain/models';
 import type { RouteName } from '../types';
 import { AccessService } from '../services/AccessService';
@@ -11,6 +11,7 @@ export class AppController {
   readonly storageService = new StorageService();
 
   user: User;
+  lastError: string | null = null;
   route: RouteName = 'dashboard';
   tasks: Task[];
   documents: DocumentItem[];
@@ -59,13 +60,22 @@ export class AppController {
   }
 
   navigate(route: RouteName): void {
-    if (!this.accessService.canAccessRoute(route, this.user)) {
+    const denied = !this.accessService.canAccessRoute(route, this.user);
+    if (denied) {
+      const reason = this.accessService.deniedReason(route, this.user) ?? 'Access denied';
+      this.lastError = reason;
       this.route = 'dashboard';
       this.notify();
       return;
     }
 
+    this.lastError = null;
     this.route = route;
+    this.notify();
+  }
+
+  clearError() {
+    this.lastError = null;
     this.notify();
   }
 
@@ -126,6 +136,40 @@ export class AppController {
   markAllNotificationsRead(): void {
     this.notifications = this.notifications.map((notification) => ({ ...notification, unread: false }));
     this.persist();
+    this.notify();
+  }
+
+  login(email: string, password: string): boolean {
+    // simple credential check against seed users present in mockData
+    try {
+      const users = seedUsers;
+      const found = users.find((u: any) => u.email === email && password === 'password');
+      if (!found) {
+        this.lastError = 'Invalid credentials';
+        this.notify();
+        return false;
+      }
+
+      this.user = User.fromSeed(found);
+      const token = `token-${this.user.id}-${Date.now()}`;
+      this.storageService.save('sessionToken', token);
+      this.storageService.save('sessionUserId', this.user.id);
+      this.route = 'dashboard';
+      this.lastError = null;
+      this.notify();
+      return true;
+    } catch (e) {
+      this.lastError = 'Login error';
+      this.notify();
+      return false;
+    }
+  }
+
+  logout(): void {
+    this.storageService.save('sessionToken', null as any);
+    this.storageService.save('sessionUserId', null as any);
+    this.route = 'login';
+    this.lastError = null;
     this.notify();
   }
 
