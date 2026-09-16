@@ -28,22 +28,15 @@ function App() {
   const selectedDocument = useMemo(() => documents.find((doc) => doc.id === controller.selectedDocumentId) ?? documents[0], [documents, controller.selectedDocumentId]);
 
   const handleCreateTask = (payload?: Partial<Task>) => {
-    const nextTask = controller.createTask(payload);
-    setTasks((previous) => [nextTask, ...previous]);
-    setNotifications(controller.notifications);
-    setRoute(controller.route);
+    controller.createTask(payload);
   };
 
   const handleUploadDocument = (payload?: Partial<DocumentItem>) => {
-    const nextDocument = controller.uploadDocument(payload);
-    setDocuments((previous) => [nextDocument, ...previous]);
-    setNotifications(controller.notifications);
-    setRoute(controller.route);
+    controller.uploadDocument(payload);
   };
 
   const handleMarkAllRead = () => {
     controller.markAllNotificationsRead();
-    setNotifications(controller.notifications);
   };
 
   const syncState = () => {
@@ -53,13 +46,17 @@ function App() {
     setRoute(controller.route);
   };
 
+  React.useEffect(() => {
+    const unsub = controller.subscribe(() => syncState());
+    return unsub;
+  }, [controller]);
+
   const onNavigate = (nextRoute: typeof route) => {
     controller.navigate(nextRoute);
-    syncState();
   };
 
   if (route === 'login') {
-    return <LoginPage onLogin={() => { controller.navigate('dashboard'); syncState(); }} />;
+    return <LoginPage onLogin={() => { controller.navigate('dashboard'); }} />;
   }
 
   return (

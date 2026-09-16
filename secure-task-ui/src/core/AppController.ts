@@ -27,6 +27,25 @@ export class AppController {
     this.selectedDocumentId = this.documents[0]?.id ?? 'd1';
   }
 
+  private subscribers: Array<(c: AppController) => void> = [];
+
+  subscribe(fn: (c: AppController) => void) {
+    this.subscribers.push(fn);
+    return () => {
+      this.subscribers = this.subscribers.filter((s) => s !== fn);
+    };
+  }
+
+  private notify() {
+    this.subscribers.forEach((s) => {
+      try {
+        s(this);
+      } catch {
+        // swallow listener errors to keep controller resilient
+      }
+    });
+  }
+
   get selectedTask() {
     return this.tasks.find((task) => task.id === this.selectedTaskId) ?? this.tasks[0];
   }
@@ -42,20 +61,24 @@ export class AppController {
   navigate(route: RouteName): void {
     if (!this.accessService.canAccessRoute(route, this.user)) {
       this.route = 'dashboard';
+      this.notify();
       return;
     }
 
     this.route = route;
+    this.notify();
   }
 
   openTask(id: string): void {
     this.selectedTaskId = id;
     this.route = 'task-detail';
+    this.notify();
   }
 
   openDocument(id: string): void {
     this.selectedDocumentId = id;
     this.route = 'document-detail';
+    this.notify();
   }
 
   createTask(input: Partial<Task> = {}): Task {
@@ -75,6 +98,7 @@ export class AppController {
     this.route = 'task-detail';
     this.auditService.log('Created task', task.title, this.user);
     this.persist();
+    this.notify();
     return task;
   }
 
@@ -95,12 +119,14 @@ export class AppController {
     this.route = 'document-detail';
     this.auditService.log('Uploaded document', document.fileName, this.user);
     this.persist();
+    this.notify();
     return document;
   }
 
   markAllNotificationsRead(): void {
     this.notifications = this.notifications.map((notification) => ({ ...notification, unread: false }));
     this.persist();
+    this.notify();
   }
 
   persist(): void {
