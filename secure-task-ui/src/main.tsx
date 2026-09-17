@@ -63,9 +63,9 @@ function App() {
     <AppProvider controller={controller}>
       <AppLayout>
         {route === 'dashboard' && <DashboardPage tasks={tasks} documents={documents} onNavigate={onNavigate} />}
-        {route === 'tasks' && <TasksPage tasks={tasks} onOpenTask={(id) => { controller.openTask(id); syncState(); }} onCreateTask={handleCreateTask} />}
+        {route === 'tasks' && <TasksPage />}
         {route === 'task-detail' && <TaskDetailPage documents={documents} task={selectedTask} onBack={() => { controller.navigate('tasks'); syncState(); }} />}
-        {route === 'documents' && <DocumentsPage documents={documents} onOpenDocument={(id) => { controller.openDocument(id); syncState(); }} onUploadDocument={handleUploadDocument} />}
+        {route === 'documents' && <DocumentsPage />}
         {route === 'document-detail' && <DocumentDetailPage document={selectedDocument} onBack={() => { controller.navigate('documents'); syncState(); }} />}
         {route === 'notifications' && <NotificationsPage notifications={notifications} onMarkAllRead={handleMarkAllRead} />}
         {route === 'audit-logs' && <AuditLogsPage />}

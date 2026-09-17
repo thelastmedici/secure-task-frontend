@@ -92,6 +92,11 @@ export class AppController {
   }
 
   createTask(input: Partial<Task> = {}): Task {
+    if (!this.accessService.canCreateTask(this.user)) {
+      this.lastError = 'You do not have permission to create tasks.';
+      this.notify();
+      return null as any;
+    }
     const now = new Date();
     const task = new Task(
       `t${now.getTime()}`,
@@ -107,12 +112,20 @@ export class AppController {
     this.selectedTaskId = task.id;
     this.route = 'task-detail';
     this.auditService.log('Created task', task.title, this.user);
+    // create a notification for the creation
+    const notif = new NotificationItem(`n${now.getTime()}`, `Task created: ${task.title}`, 'Task', true, now.toISOString());
+    this.notifications = [notif, ...this.notifications];
     this.persist();
     this.notify();
     return task;
   }
 
   uploadDocument(input: Partial<DocumentItem> = {}): DocumentItem {
+    if (!this.accessService.canUploadDocument(this.user)) {
+      this.lastError = 'You do not have permission to upload documents.';
+      this.notify();
+      return null as any;
+    }
     const now = new Date();
     const document = new DocumentItem(
       `d${now.getTime()}`,
@@ -128,6 +141,8 @@ export class AppController {
     this.selectedDocumentId = document.id;
     this.route = 'document-detail';
     this.auditService.log('Uploaded document', document.fileName, this.user);
+    const notif = new NotificationItem(`n${now.getTime()}`, `${this.user.name} uploaded ${document.fileName}`, 'Document', true, now.toISOString());
+    this.notifications = [notif, ...this.notifications];
     this.persist();
     this.notify();
     return document;
