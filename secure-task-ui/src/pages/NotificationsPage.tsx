@@ -1,10 +1,13 @@
 import { PageHeader } from '../components/PageHeader';
-import type { NotificationItem } from '../types';
+import { useAppController } from '../core/AppContext';
 
-export function NotificationsPage({ notifications, onMarkAllRead }: { notifications: NotificationItem[]; onMarkAllRead?: () => void }) {
+export function NotificationsPage() {
+  const controller = useAppController();
+  const notifications = controller.notifications;
+
   return (
     <>
-      <PageHeader title="Notifications" description="Task, document, and security updates in one inbox." action={<button onClick={onMarkAllRead}>Mark all as read</button>} />
+      <PageHeader title="Notifications" description="Task, document, and security updates in one inbox." action={<button onClick={() => controller.markAllNotificationsRead()}>Mark all as read</button>} />
       <section className="card stack-list">
         {notifications.map((item) => (
           <div className={`list-row ${item.unread ? 'unread' : ''}`} key={item.id}>

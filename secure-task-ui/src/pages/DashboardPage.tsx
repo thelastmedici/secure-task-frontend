@@ -2,18 +2,12 @@ import { Bell, CheckCircle, Clock, FileText } from 'lucide-react';
 import { MetricCard } from '../components/MetricCard';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
-import { notifications } from '../data/mockData';
-import type { DocumentItem, RouteName, Task } from '../types';
+import { useAppController } from '../core/AppContext';
 
-export function DashboardPage({
-  tasks,
-  documents,
-  onNavigate,
-}: {
-  tasks: Task[];
-  documents: DocumentItem[];
-  onNavigate: (route: RouteName) => void;
-}) {
+export function DashboardPage() {
+  const controller = useAppController();
+  const { tasks, documents, notifications } = controller;
+
   return (
     <>
       <PageHeader title="Dashboard" description="Monitor tasks, documents, notifications, and activity from one secure workspace." />
@@ -26,7 +20,7 @@ export function DashboardPage({
 
       <div className="two-column-grid">
         <section className="card">
-          <div className="card-header"><h2>Recent Tasks</h2><button onClick={() => onNavigate('tasks')}>View all</button></div>
+          <div className="card-header"><h2>Recent Tasks</h2><button onClick={() => controller.navigate('tasks')}>View all</button></div>
           <div className="stack-list">
             {tasks.slice(0, 3).map((task) => (
               <div className="list-row" key={task.id}>
@@ -38,7 +32,7 @@ export function DashboardPage({
         </section>
 
         <section className="card">
-          <div className="card-header"><h2>Recent Activity</h2><button onClick={() => onNavigate('audit-logs')}>Audit logs</button></div>
+          <div className="card-header"><h2>Recent Activity</h2><button onClick={() => controller.navigate('audit-logs')}>Audit logs</button></div>
           <div className="timeline">
             <div><span />Joshua uploaded audit-design.pdf</div>
             <div><span />Sarah updated permissions task</div>

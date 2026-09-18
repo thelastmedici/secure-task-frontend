@@ -56,18 +56,22 @@ function App() {
   };
 
   if (route === 'login') {
-    return <LoginPage />;
+    return (
+      <AppProvider controller={controller}>
+        <LoginPage />
+      </AppProvider>
+    );
   }
 
   return (
     <AppProvider controller={controller}>
       <AppLayout>
-        {route === 'dashboard' && <DashboardPage tasks={tasks} documents={documents} onNavigate={onNavigate} />}
+        {route === 'dashboard' && <DashboardPage />}
         {route === 'tasks' && <TasksPage />}
-        {route === 'task-detail' && <TaskDetailPage documents={documents} task={selectedTask} onBack={() => { controller.navigate('tasks'); syncState(); }} />}
+        {route === 'task-detail' && <TaskDetailPage />}
         {route === 'documents' && <DocumentsPage />}
-        {route === 'document-detail' && <DocumentDetailPage document={selectedDocument} onBack={() => { controller.navigate('documents'); syncState(); }} />}
-        {route === 'notifications' && <NotificationsPage notifications={notifications} onMarkAllRead={handleMarkAllRead} />}
+        {route === 'document-detail' && <DocumentDetailPage />}
+        {route === 'notifications' && <NotificationsPage />}
         {route === 'audit-logs' && <AuditLogsPage />}
         {route === 'users' && <UsersPage />}
         {route === 'roles' && <RolesPage />}
