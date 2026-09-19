@@ -1,5 +1,12 @@
-import { currentUser, documents as seedDocuments, notifications as seedNotifications, tasks as seedTasks, users as seedUsers } from '../data/mockData';
-import { DocumentItem, NotificationItem, Task, User } from '../domain/models';
+import {
+  auditLogs as seedAuditLogs,
+  currentUser,
+  documents as seedDocuments,
+  notifications as seedNotifications,
+  tasks as seedTasks,
+  users as seedUsers,
+} from '../data/mockData';
+import { AuditLog, DocumentItem, NotificationItem, Task, User } from '../domain/models';
 import type { RouteName } from '../types';
 import { AccessService } from '../services/AccessService';
 import { AuditService } from '../services/AuditService';
@@ -12,10 +19,12 @@ export class AppController {
 
   user: User;
   lastError: string | null = null;
-  route: RouteName = 'dashboard';
+  route: RouteName = 'login';
   tasks: Task[];
   documents: DocumentItem[];
   notifications: NotificationItem[];
+  users: User[];
+  auditLogs: AuditLog[];
   selectedTaskId: string;
   selectedDocumentId: string;
 
@@ -24,6 +33,19 @@ export class AppController {
     this.tasks = this.storageService.load('tasks', seedTasks.map(Task.fromSeed));
     this.documents = this.storageService.load('documents', seedDocuments.map(DocumentItem.fromSeed));
     this.notifications = this.storageService.load('notifications', seedNotifications.map(NotificationItem.fromSeed));
+    this.users = this.storageService.load('users', seedUsers.map(User.fromSeed));
+    this.auditLogs = this.storageService.load('auditLogs', seedAuditLogs.map(AuditLog.fromSeed));
+
+    const storedUserId = this.storageService.load<string | null>('sessionUserId', null);
+    const storedToken = this.storageService.load<string | null>('sessionToken', null);
+    if (storedToken && storedUserId) {
+      const sessionUser = this.users.find((candidate) => candidate.id === storedUserId);
+      if (sessionUser) {
+        this.user = sessionUser;
+        this.route = 'dashboard';
+      }
+    }
+
     this.selectedTaskId = this.tasks[0]?.id ?? 't1';
     this.selectedDocumentId = this.documents[0]?.id ?? 'd1';
   }
@@ -60,6 +82,13 @@ export class AppController {
   }
 
   navigate(route: RouteName): void {
+    if (route === 'login') {
+      this.lastError = null;
+      this.route = 'login';
+      this.notify();
+      return;
+    }
+
     const denied = !this.accessService.canAccessRoute(route, this.user);
     if (denied) {
       const reason = this.accessService.deniedReason(route, this.user) ?? 'Access denied';
@@ -97,6 +126,7 @@ export class AppController {
       this.notify();
       return null as any;
     }
+
     const now = new Date();
     const task = new Task(
       `t${now.getTime()}`,
@@ -111,8 +141,11 @@ export class AppController {
     this.tasks = [task, ...this.tasks];
     this.selectedTaskId = task.id;
     this.route = 'task-detail';
+    this.auditLogs = [
+      new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Created Task', task.title, '127.0.0.1'),
+      ...this.auditLogs,
+    ];
     this.auditService.log('Created task', task.title, this.user);
-    // create a notification for the creation
     const notif = new NotificationItem(`n${now.getTime()}`, `Task created: ${task.title}`, 'Task', true, now.toISOString());
     this.notifications = [notif, ...this.notifications];
     this.persist();
@@ -126,6 +159,7 @@ export class AppController {
       this.notify();
       return null as any;
     }
+
     const now = new Date();
     const document = new DocumentItem(
       `d${now.getTime()}`,
@@ -140,8 +174,12 @@ export class AppController {
     this.documents = [document, ...this.documents];
     this.selectedDocumentId = document.id;
     this.route = 'document-detail';
+    this.auditLogs = [
+      new AuditLog(`a${now.getTime() + 1}`, now.toISOString(), this.user.name, 'Uploaded Document', document.fileName, '127.0.0.1'),
+      ...this.auditLogs,
+    ];
     this.auditService.log('Uploaded document', document.fileName, this.user);
-    const notif = new NotificationItem(`n${now.getTime()}`, `${this.user.name} uploaded ${document.fileName}`, 'Document', true, now.toISOString());
+    const notif = new NotificationItem(`n${now.getTime() + 2}`, `${this.user.name} uploaded ${document.fileName}`, 'Document', true, now.toISOString());
     this.notifications = [notif, ...this.notifications];
     this.persist();
     this.notify();
@@ -155,10 +193,8 @@ export class AppController {
   }
 
   login(email: string, password: string): boolean {
-    // simple credential check against seed users present in mockData
     try {
-      const users = seedUsers;
-      const found = users.find((u: any) => u.email === email && password === 'password');
+      const found = seedUsers.find((user) => user.email === email && password === 'password');
       if (!found) {
         this.lastError = 'Invalid credentials';
         this.notify();
@@ -166,14 +202,20 @@ export class AppController {
       }
 
       this.user = User.fromSeed(found);
+      this.users = this.users.some((candidate) => candidate.id === this.user.id) ? this.users : [this.user, ...this.users];
       const token = `token-${this.user.id}-${Date.now()}`;
       this.storageService.save('sessionToken', token);
       this.storageService.save('sessionUserId', this.user.id);
       this.route = 'dashboard';
       this.lastError = null;
+      this.auditLogs = [
+        new AuditLog(`a${Date.now()}`, new Date().toISOString(), this.user.name, 'Logged In', 'Session', '127.0.0.1'),
+        ...this.auditLogs,
+      ];
+      this.persist();
       this.notify();
       return true;
-    } catch (e) {
+    } catch {
       this.lastError = 'Login error';
       this.notify();
       return false;
@@ -185,6 +227,7 @@ export class AppController {
     this.storageService.save('sessionUserId', null as any);
     this.route = 'login';
     this.lastError = null;
+    this.user = User.fromSeed(currentUser);
     this.notify();
   }
 
@@ -192,5 +235,7 @@ export class AppController {
     this.storageService.save('tasks', this.tasks);
     this.storageService.save('documents', this.documents);
     this.storageService.save('notifications', this.notifications);
+    this.storageService.save('users', this.users);
+    this.storageService.save('auditLogs', this.auditLogs);
   }
 }

@@ -54,7 +54,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <button type="button" className="nav-item logout" onClick={() => controller.navigate('login')}>
+        <button type="button" className="nav-item logout" onClick={() => controller.logout()}>
           <LogOut size={18} /> Logout
         </button>
       </aside>

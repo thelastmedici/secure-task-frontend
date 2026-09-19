@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { AppController } from './AppController';
 import { User } from '../domain/models';
+import { StorageService } from '../services/StorageService';
 
 describe('AppController navigation and auth gating', () => {
+  beforeEach(() => {
+    new StorageService().clear();
+  });
   it('redirects non-admin from audit-logs to dashboard', () => {
     const c = new AppController();
-    // set non-admin user
     c.user = User.fromSeed({ id: 'uX', name: 'Member', email: 'm@example.com', role: 'Member', status: 'Active' });
     c.navigate('audit-logs');
     expect(c.route).toBe('dashboard');
@@ -35,8 +38,8 @@ describe('AppController navigation and auth gating', () => {
     const c = new AppController();
     const ok = c.login('joshua@example.com', 'password');
     expect(ok).toBe(true);
-    // token should be present in storage
-    const raw = window.localStorage.getItem('sessionToken');
+    const storage = new StorageService();
+    const raw = storage.load<string | null>('sessionToken', null);
     expect(raw).toBeTruthy();
     expect(c.route).toBe('dashboard');
   });
@@ -47,5 +50,34 @@ describe('AppController navigation and auth gating', () => {
     expect(ok).toBe(false);
     expect(c.route).not.toBe('dashboard');
     expect(c.lastError).toBe('Invalid credentials');
+  });
+
+  it('creates a task for authorized users and records notifications/audit entries', () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u2', name: 'Sarah Connor', email: 'sarah@example.com', role: 'Manager', status: 'Active' });
+    const created = c.createTask({ title: 'Security review', description: 'Assess the new workflow' });
+
+    expect(created.title).toBe('Security review');
+    expect(c.tasks[0].id).toBe(created.id);
+    expect(c.notifications[0].message).toContain('Security review');
+    expect(c.auditLogs[0].action).toBe('Created Task');
+    expect(c.route).toBe('task-detail');
+  });
+
+  it('rejects task creation for members and keeps route stable', () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active' });
+    const created = c.createTask({ title: 'Unauthorized task' });
+    expect(created).toBeNull();
+    expect(c.lastError).toContain('permission');
+  });
+
+  it('logout clears the persisted session and resets route to login', () => {
+    const c = new AppController();
+    c.login('joshua@example.com', 'password');
+    c.logout();
+    expect(c.route).toBe('login');
+    const storage = new StorageService();
+    expect(storage.load<string | null>('sessionToken', null)).toBeNull();
   });
 });

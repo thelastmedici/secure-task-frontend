@@ -1,8 +1,34 @@
+class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  private static instance: MemoryStorage | null = null;
+  private readonly store = new Map<string, string>();
+
+  static getInstance(): MemoryStorage {
+    if (!MemoryStorage.instance) {
+      MemoryStorage.instance = new MemoryStorage();
+    }
+    return MemoryStorage.instance;
+  }
+
+  getItem(key: string): string | null {
+    return this.store.has(key) ? this.store.get(key)! : null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
+
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+}
+
 export class StorageService {
-  private readonly storage: Storage | null;
+  private readonly storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
 
   constructor() {
-    this.storage = typeof window !== 'undefined' ? window.localStorage : null;
+    const globalScope = typeof globalThis !== 'undefined' ? globalThis : undefined;
+    const browserStorage = globalScope && 'localStorage' in globalScope ? (globalScope as { localStorage?: Storage }).localStorage : undefined;
+    this.storage = browserStorage ?? MemoryStorage.getInstance();
   }
 
   load<T>(key: string, fallback: T): T {
@@ -21,6 +47,24 @@ export class StorageService {
 
     try {
       this.storage.setItem(key, JSON.stringify(value));
+    } catch {
+      // no-op to keep the UI resilient in restricted browsing modes
+    }
+  }
+
+  clear(): void {
+    if (!this.storage) return;
+
+    try {
+      if ('removeItem' in this.storage) {
+        this.storage.removeItem('sessionToken');
+        this.storage.removeItem('sessionUserId');
+        this.storage.removeItem('tasks');
+        this.storage.removeItem('documents');
+        this.storage.removeItem('notifications');
+        this.storage.removeItem('users');
+        this.storage.removeItem('auditLogs');
+      }
     } catch {
       // no-op to keep the UI resilient in restricted browsing modes
     }
