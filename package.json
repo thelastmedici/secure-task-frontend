@@ -1,0 +1,8 @@
+{
+  "name": "secure-task-frontend-root",
+  "private": true,
+  "scripts": {
+    "build": "cd secure-task-ui && npm run build",
+    "dev": "vite"
+  }
+}
