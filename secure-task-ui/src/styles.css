@@ -24,9 +24,15 @@ nav { display: grid; gap: 8px; }
 .logout { margin-top: auto; }
 .main { display: grid; grid-template-rows: 76px 1fr; min-width: 0; }
 .topbar { background: white; border-bottom: 1px solid #e5e7eb; padding: 16px 28px; display: flex; justify-content: space-between; gap: 18px; align-items: center; }
-.search-box { max-width: 560px; width: 100%; position: relative; display: flex; align-items: center; }
+.global-search { max-width: 560px; width: 100%; position: relative; }
+.search-box { width: 100%; position: relative; display: flex; align-items: center; }
 .search-box svg { position: absolute; left: 14px; color: #64748b; }
 .search-box input { padding-left: 42px; }
+.search-results { position: absolute; z-index: 10; top: calc(100% + 8px); width: 100%; max-height: 360px; overflow-y: auto; padding: 8px; border: 1px solid #e5e7eb; border-radius: 14px; background: white; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14); }
+.search-result { display: grid; width: 100%; gap: 2px; border-radius: 9px; padding: 10px 12px; background: transparent; color: #1f2937; text-align: left; font-weight: 400; }
+.search-result:hover, .search-result:focus-visible { background: #eff6ff; color: #1e3a8a; }
+.search-result span, .search-empty { color: #64748b; font-size: 13px; }
+.search-empty { padding: 10px 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .top-actions, .profile-pill { display: flex; align-items: center; gap: 12px; }
 .icon-button { width: 42px; height: 42px; justify-content: center; padding: 0; }
@@ -63,6 +69,7 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 18px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
 th { color: #64748b; font-size: 13px; background: #f8fafc; }
 tr:last-child td { border-bottom: 0; }
+.empty-table { padding: 28px; color: #64748b; text-align: center; }
 .detail-list { display: grid; gap: 12px; }
 .detail-list div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; }
 .detail-list span { color: #64748b; }

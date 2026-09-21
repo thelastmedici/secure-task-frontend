@@ -8,6 +8,7 @@ export function DocumentsPage() {
   const controller = useAppController();
   const documents = controller.documents;
   const [query, setQuery] = useState('');
+  const [fileType, setFileType] = useState('all');
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
   const [type, setType] = useState('PDF');
@@ -15,9 +16,9 @@ export function DocumentsPage() {
 
   const filtered = useMemo(() => documents.filter((d) => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return d.fileName.toLowerCase().includes(q) || (d.linkedTask ?? '').toLowerCase().includes(q) || d.uploadedBy.toLowerCase().includes(q);
-  }), [documents, query]);
+    const matchesQuery = !q || d.fileName.toLowerCase().includes(q) || (d.linkedTask ?? '').toLowerCase().includes(q) || d.uploadedBy.toLowerCase().includes(q);
+    return matchesQuery && (fileType === 'all' || d.type === fileType);
+  }), [documents, query, fileType]);
 
   const submitUpload = () => {
     if (!fileName.trim()) { setLocalError('Please provide a file name'); return; }
@@ -43,9 +44,15 @@ export function DocumentsPage() {
         </section>
       )}
 
-      <div className="toolbar"><input placeholder="Search documents..." value={query} onChange={(e) => setQuery(e.target.value)} /><select><option>All file types</option><option>PDF</option><option>DOCX</option><option>XLSX</option></select></div>
+      <div className="toolbar">
+        <input aria-label="Search documents" placeholder="Search documents..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <select aria-label="Filter documents by file type" value={fileType} onChange={(event) => setFileType(event.target.value)}>
+          <option value="all">All file types</option><option>PDF</option><option>DOCX</option><option>XLSX</option>
+        </select>
+      </div>
       <section className="card table-card"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded By</th><th>Date</th><th /></tr></thead><tbody>
         {filtered.map((doc: DocumentItem) => <tr key={doc.id}><td><strong>{doc.fileName}</strong><span>{doc.linkedTask}</span></td><td>{doc.type}</td><td>{doc.size}</td><td>{doc.uploadedBy}</td><td>{doc.uploadedAt}</td><td><button onClick={() => controller.openDocument(doc.id)}>Open</button></td></tr>)}
+        {filtered.length === 0 && <tr><td colSpan={6} className="empty-table">No documents match the current filters.</td></tr>}
       </tbody></table></section>
     </>
   );

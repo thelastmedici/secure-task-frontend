@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
 import { useAppController } from '../core/AppContext';
 import type { RouteName } from '../types';
@@ -8,6 +8,13 @@ type NavigationItem = {
   label: string;
   icon: ReactNode;
   adminOnly?: boolean;
+};
+
+type SearchResult = {
+  id: string;
+  title: string;
+  detail: string;
+  onSelect: () => void;
 };
 
 const navItems: NavigationItem[] = [
@@ -27,6 +34,46 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const visibleNav = navItems.filter((item) => !item.adminOnly || controller.user.isAdmin());
   const unreadNotifications = controller.notifications.filter((notification) => notification.unread).length;
   const userInitial = controller.user.name.trim().charAt(0).toUpperCase();
+  const [searchQuery, setSearchQuery] = useState('');
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const searchResults = useMemo<SearchResult[]>(() => {
+    if (!normalizedQuery) return [];
+
+    const includesQuery = (value: string) => value.toLowerCase().includes(normalizedQuery);
+    const taskResults = controller.tasks
+      .filter((task) => includesQuery(task.title) || includesQuery(task.description) || includesQuery(task.assignee))
+      .map((task) => ({
+        id: `task-${task.id}`,
+        title: task.title,
+        detail: `Task · ${task.status}`,
+        onSelect: () => controller.openTask(task.id),
+      }));
+    const documentResults = controller.documents
+      .filter((document) => includesQuery(document.fileName) || includesQuery(document.uploadedBy) || includesQuery(document.linkedTask ?? ''))
+      .map((document) => ({
+        id: `document-${document.id}`,
+        title: document.fileName,
+        detail: `Document · ${document.type}`,
+        onSelect: () => controller.openDocument(document.id),
+      }));
+    const userResults = controller.user.isAdmin()
+      ? controller.users
+        .filter((user) => includesQuery(user.name) || includesQuery(user.email) || includesQuery(user.role))
+        .map((user) => ({
+          id: `user-${user.id}`,
+          title: user.name,
+          detail: `User · ${user.role}`,
+          onSelect: () => controller.navigate('users'),
+        }))
+      : [];
+
+    return [...taskResults, ...documentResults, ...userResults].slice(0, 8);
+  }, [controller.documents, controller.tasks, controller.user, controller.users, normalizedQuery]);
+
+  const selectSearchResult = (result: SearchResult) => {
+    result.onSelect();
+    setSearchQuery('');
+  };
 
   return (
     <div className="app-shell">
@@ -61,11 +108,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <main className="main">
         <header className="topbar">
+          <div className="global-search">
           <label className="search-box">
             <span className="sr-only">Search tasks, documents, and users</span>
             <Search size={18} />
-            <input type="search" placeholder="Search tasks, documents, users..." />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search tasks, documents, users..."
+              aria-controls="global-search-results"
+              aria-expanded={normalizedQuery.length > 0}
+            />
           </label>
+          {normalizedQuery && (
+            <div id="global-search-results" className="search-results" role="listbox" aria-label="Search results">
+              {searchResults.length > 0 ? searchResults.map((result) => (
+                <button key={result.id} type="button" className="search-result" role="option" onClick={() => selectSearchResult(result)}>
+                  <strong>{result.title}</strong>
+                  <span>{result.detail}</span>
+                </button>
+              )) : <p className="search-empty">No matching tasks, documents, or users.</p>}
+            </div>
+          )}
+          </div>
           <div className="top-actions">
             <button
               type="button"
