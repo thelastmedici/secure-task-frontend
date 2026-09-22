@@ -153,6 +153,50 @@ export class AppController {
     return task;
   }
 
+  completeTask(id: string): Task | null {
+    const task = this.tasks.find((candidate) => candidate.id === id);
+    if (!task) {
+      this.lastError = 'Task not found.';
+      this.notify();
+      return null;
+    }
+
+    if (!this.accessService.canCompleteTask(this.user, task)) {
+      this.lastError = 'You do not have permission to complete this task.';
+      this.notify();
+      return null;
+    }
+
+    if (task.status === 'Completed') {
+      return task;
+    }
+
+    const completedTask = new Task(
+      task.id,
+      task.title,
+      task.description,
+      'Completed',
+      task.priority,
+      task.assignee,
+      task.dueDate,
+    );
+    const now = new Date();
+    this.tasks = this.tasks.map((candidate) => candidate.id === id ? completedTask : candidate);
+    this.auditLogs = [
+      new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Completed Task', task.title, '127.0.0.1'),
+      ...this.auditLogs,
+    ];
+    this.notifications = [
+      new NotificationItem(`n${now.getTime()}`, `Task completed: ${task.title}`, 'Task', true, now.toISOString()),
+      ...this.notifications,
+    ];
+    this.auditService.log('Completed task', task.title, this.user);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return completedTask;
+  }
+
   uploadDocument(input: Partial<DocumentItem> = {}): DocumentItem {
     if (!this.accessService.canUploadDocument(this.user)) {
       this.lastError = 'You do not have permission to upload documents.';

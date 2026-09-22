@@ -1,4 +1,4 @@
-import type { User } from '../domain/models';
+import type { Task, User } from '../domain/models';
 import type { RouteName } from '../types';
 
 export class AccessService {
@@ -21,6 +21,10 @@ export class AccessService {
 
   canCreateTask(user: User): boolean {
     return user.role === 'Admin' || user.role === 'Manager';
+  }
+
+  canCompleteTask(user: User, task: Task): boolean {
+    return user.role === 'Admin' || user.role === 'Manager' || task.assignee === user.name;
   }
 
   canUploadDocument(user: User): boolean {

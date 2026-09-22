@@ -72,6 +72,31 @@ describe('AppController navigation and auth gating', () => {
     expect(c.lastError).toContain('permission');
   });
 
+  it('completes an authorized task and records the change', () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u2', name: 'Sarah Connor', email: 'sarah@example.com', role: 'Manager', status: 'Active' });
+    const task = c.tasks.find((candidate) => candidate.status !== 'Completed')!;
+
+    const completed = c.completeTask(task.id);
+
+    expect(completed?.status).toBe('Completed');
+    expect(c.tasks.find((candidate) => candidate.id === task.id)?.status).toBe('Completed');
+    expect(c.auditLogs[0].action).toBe('Completed Task');
+    expect(c.notifications[0].message).toContain(task.title);
+  });
+
+  it('does not let a member complete another user’s task', () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active' });
+    const task = c.tasks.find((candidate) => candidate.assignee !== c.user.name)!;
+
+    const completed = c.completeTask(task.id);
+
+    expect(completed).toBeNull();
+    expect(task.status).not.toBe('Completed');
+    expect(c.lastError).toContain('permission');
+  });
+
   it('logout clears the persisted session and resets route to login', () => {
     const c = new AppController();
     c.login('joshua@example.com', 'password');
