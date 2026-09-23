@@ -230,6 +230,59 @@ export class AppController {
     return document;
   }
 
+  recordDocumentAction(id: string, action: 'Previewed Document' | 'Downloaded Document'): boolean {
+    const document = this.documents.find((candidate) => candidate.id === id);
+    if (!document) {
+      this.lastError = 'Document not found.';
+      this.notify();
+      return false;
+    }
+
+    const now = new Date();
+    this.auditLogs = [
+      new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, action, document.fileName, '127.0.0.1'),
+      ...this.auditLogs,
+    ];
+    this.auditService.log(action.toLowerCase(), document.fileName, this.user);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  deleteDocument(id: string): boolean {
+    const document = this.documents.find((candidate) => candidate.id === id);
+    if (!document) {
+      this.lastError = 'Document not found.';
+      this.notify();
+      return false;
+    }
+
+    if (!this.accessService.canDeleteDocument(this.user, document)) {
+      this.lastError = 'You do not have permission to delete this document.';
+      this.notify();
+      return false;
+    }
+
+    const now = new Date();
+    this.documents = this.documents.filter((candidate) => candidate.id !== id);
+    this.selectedDocumentId = this.documents[0]?.id ?? '';
+    this.auditLogs = [
+      new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Deleted Document', document.fileName, '127.0.0.1'),
+      ...this.auditLogs,
+    ];
+    this.auditService.log('Deleted document', document.fileName, this.user);
+    this.notifications = [
+      new NotificationItem(`n${now.getTime()}`, `Document deleted: ${document.fileName}`, 'Document', true, now.toISOString()),
+      ...this.notifications,
+    ];
+    this.route = 'documents';
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return true;
+  }
+
   markAllNotificationsRead(): void {
     this.notifications = this.notifications.map((notification) => ({ ...notification, unread: false }));
     this.persist();

@@ -1,4 +1,4 @@
-import type { Task, User } from '../domain/models';
+import type { DocumentItem, Task, User } from '../domain/models';
 import type { RouteName } from '../types';
 
 export class AccessService {
@@ -29,5 +29,9 @@ export class AccessService {
 
   canUploadDocument(user: User): boolean {
     return ['Admin', 'Manager', 'Member'].includes(user.role);
+  }
+
+  canDeleteDocument(user: User, document: DocumentItem): boolean {
+    return user.role === 'Admin' || user.role === 'Manager' || document.uploadedBy === user.name;
   }
 }

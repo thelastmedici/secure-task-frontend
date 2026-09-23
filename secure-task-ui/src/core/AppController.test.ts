@@ -97,6 +97,36 @@ describe('AppController navigation and auth gating', () => {
     expect(c.lastError).toContain('permission');
   });
 
+  it('records document previews and downloads in the audit history', () => {
+    const c = new AppController();
+    const document = c.documents[0];
+
+    expect(c.recordDocumentAction(document.id, 'Previewed Document')).toBe(true);
+    expect(c.recordDocumentAction(document.id, 'Downloaded Document')).toBe(true);
+    expect(c.auditLogs[0].action).toBe('Downloaded Document');
+    expect(c.auditLogs[1].action).toBe('Previewed Document');
+  });
+
+  it('deletes an authorized document and preserves an audit record', () => {
+    const c = new AppController();
+    const document = c.documents[0];
+
+    expect(c.deleteDocument(document.id)).toBe(true);
+    expect(c.documents.some((candidate) => candidate.id === document.id)).toBe(false);
+    expect(c.auditLogs[0].action).toBe('Deleted Document');
+    expect(c.route).toBe('documents');
+  });
+
+  it("does not let a member delete another user's document", () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active' });
+    const document = c.documents.find((candidate) => candidate.uploadedBy !== c.user.name)!;
+
+    expect(c.deleteDocument(document.id)).toBe(false);
+    expect(c.documents.some((candidate) => candidate.id === document.id)).toBe(true);
+    expect(c.lastError).toContain('permission');
+  });
+
   it('logout clears the persisted session and resets route to login', () => {
     const c = new AppController();
     c.login('joshua@example.com', 'password');
