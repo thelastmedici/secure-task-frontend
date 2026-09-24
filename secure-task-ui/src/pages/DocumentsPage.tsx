@@ -1,5 +1,5 @@
 import { Upload } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import type { DocumentItem } from '../types';
 import { useAppController } from '../core/AppContext';
@@ -12,6 +12,7 @@ export function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
   const [type, setType] = useState('PDF');
+  const [sizeInMb, setSizeInMb] = useState('1.2');
   const [localError, setLocalError] = useState<string | null>(null);
 
   const filtered = useMemo(() => documents.filter((d) => {
@@ -20,14 +21,20 @@ export function DocumentsPage() {
     return matchesQuery && (fileType === 'all' || d.type === fileType);
   }), [documents, query, fileType]);
 
+  useEffect(() => {
+    if (!controller.workspaceSettings.allowedFileTypes.includes(type)) {
+      setType(controller.workspaceSettings.allowedFileTypes[0] ?? '');
+    }
+  }, [controller.workspaceSettings.allowedFileTypes, type]);
+
   const submitUpload = () => {
     if (!fileName.trim()) { setLocalError('Please provide a file name'); return; }
-    const result = controller.uploadDocument({ fileName: fileName.trim(), type });
+    const result = controller.uploadDocument({ fileName: fileName.trim(), type, size: `${sizeInMb} MB` });
     if (!result) {
       setLocalError(controller.lastError ?? 'Upload failed');
       return;
     }
-    setFileName(''); setType('PDF'); setUploading(false); setLocalError(null);
+    setFileName(''); setSizeInMb('1.2'); setUploading(false); setLocalError(null);
   };
 
   return (
@@ -39,7 +46,8 @@ export function DocumentsPage() {
           <h3>Upload Document</h3>
           {localError && <div className="form-error">{localError}</div>}
           <div className="form-row"><input placeholder="File name (e.g. doc.pdf)" value={fileName} onChange={(e) => setFileName(e.target.value)} /></div>
-          <div className="form-row"><select value={type} onChange={(e) => setType(e.target.value)}><option>PDF</option><option>DOCX</option><option>XLSX</option></select></div>
+          <div className="form-row"><select value={type} onChange={(e) => setType(e.target.value)}>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}</select></div>
+          <div className="form-row"><input aria-label="File size in MB" type="number" min="0.1" step="0.1" placeholder="File size in MB" value={sizeInMb} onChange={(e) => setSizeInMb(e.target.value)} /></div>
           <div className="form-row"><button className="primary-button" onClick={submitUpload}>Upload</button> <button onClick={() => { setUploading(false); setLocalError(null); }}>Cancel</button></div>
         </section>
       )}
@@ -47,7 +55,7 @@ export function DocumentsPage() {
       <div className="toolbar">
         <input aria-label="Search documents" placeholder="Search documents..." value={query} onChange={(e) => setQuery(e.target.value)} />
         <select aria-label="Filter documents by file type" value={fileType} onChange={(event) => setFileType(event.target.value)}>
-          <option value="all">All file types</option><option>PDF</option><option>DOCX</option><option>XLSX</option>
+          <option value="all">All file types</option>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}
         </select>
       </div>
       <section className="card table-card"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded By</th><th>Date</th><th /></tr></thead><tbody>

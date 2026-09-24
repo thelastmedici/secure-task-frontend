@@ -64,6 +64,9 @@ export class StorageService {
         this.storage.removeItem('notifications');
         this.storage.removeItem('users');
         this.storage.removeItem('auditLogs');
+        this.storage.removeItem('workspaceSettings');
+        this.storage.removeItem('passwordCredentials');
+        this.storage.removeItem('twoFactorCredentials');
       }
     } catch {
       // no-op to keep the UI resilient in restricted browsing modes

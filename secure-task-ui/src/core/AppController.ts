@@ -7,10 +7,20 @@ import {
   users as seedUsers,
 } from '../data/mockData';
 import { AuditLog, DocumentItem, NotificationItem, Task, User } from '../domain/models';
-import type { RouteName } from '../types';
+import type { RouteName, WorkspaceSettings } from '../types';
 import { AccessService } from '../services/AccessService';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
+
+type SecretCredential = {
+  salt: string;
+  hash: string;
+};
+
+const defaultWorkspaceSettings: WorkspaceSettings = {
+  maxUploadSizeMb: 25,
+  allowedFileTypes: ['PDF', 'DOCX', 'XLSX', 'PNG'],
+};
 
 export class AppController {
   readonly accessService = new AccessService();
@@ -25,16 +35,23 @@ export class AppController {
   notifications: NotificationItem[];
   users: User[];
   auditLogs: AuditLog[];
+  workspaceSettings: WorkspaceSettings;
   selectedTaskId: string;
   selectedDocumentId: string;
+  private passwordCredentials: Record<string, SecretCredential>;
+  private twoFactorCredentials: Record<string, SecretCredential>;
 
   constructor() {
     this.user = User.fromSeed(currentUser);
     this.tasks = this.storageService.load('tasks', seedTasks.map(Task.fromSeed));
     this.documents = this.storageService.load('documents', seedDocuments.map(DocumentItem.fromSeed));
     this.notifications = this.storageService.load('notifications', seedNotifications.map(NotificationItem.fromSeed));
-    this.users = this.storageService.load('users', seedUsers.map(User.fromSeed));
+    const storedUsers = this.storageService.load('users', seedUsers);
+    this.users = storedUsers.map(User.fromSeed);
     this.auditLogs = this.storageService.load('auditLogs', seedAuditLogs.map(AuditLog.fromSeed));
+    this.workspaceSettings = this.storageService.load('workspaceSettings', defaultWorkspaceSettings);
+    this.passwordCredentials = this.storageService.load('passwordCredentials', {});
+    this.twoFactorCredentials = this.storageService.load('twoFactorCredentials', {});
 
     const storedUserId = this.storageService.load<string | null>('sessionUserId', null);
     const storedToken = this.storageService.load<string | null>('sessionToken', null);
@@ -81,6 +98,29 @@ export class AppController {
     return this.notifications.filter((notification) => notification.unread).length;
   }
 
+  private async createCredential(secret: string): Promise<SecretCredential> {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const secretBytes = new TextEncoder().encode(secret);
+    const key = await crypto.subtle.importKey('raw', secretBytes, 'PBKDF2', false, ['deriveBits']);
+    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, key, 256);
+    return { salt: Array.from(salt, (byte) => byte.toString(16).padStart(2, '0')).join(''), hash: Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('') };
+  }
+
+  private async credentialMatches(secret: string, credential: SecretCredential): Promise<boolean> {
+    const salt = Uint8Array.from(credential.salt.match(/.{1,2}/g) ?? [], (byte) => Number.parseInt(byte, 16));
+    const secretBytes = new TextEncoder().encode(secret);
+    const key = await crypto.subtle.importKey('raw', secretBytes, 'PBKDF2', false, ['deriveBits']);
+    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, key, 256);
+    const actualHash = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return actualHash === credential.hash;
+  }
+
+  private addAuditEntry(action: string, entity: string): void {
+    const now = new Date();
+    this.auditLogs = [new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, action, entity, '127.0.0.1'), ...this.auditLogs];
+    this.auditService.log(action, entity, this.user);
+  }
+
   navigate(route: RouteName): void {
     if (route === 'login') {
       this.lastError = null;
@@ -106,6 +146,104 @@ export class AppController {
   clearError() {
     this.lastError = null;
     this.notify();
+  }
+
+  updateProfile(name: string, email: string): boolean {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      this.lastError = 'Please enter your name.';
+      this.notify();
+      return false;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      this.lastError = 'Please enter a valid email address.';
+      this.notify();
+      return false;
+    }
+    if (this.users.some((candidate) => candidate.id !== this.user.id && candidate.email.toLowerCase() === normalizedEmail)) {
+      this.lastError = 'That email address is already in use.';
+      this.notify();
+      return false;
+    }
+
+    this.user = new User(this.user.id, normalizedName, normalizedEmail, this.user.role, this.user.status);
+    this.users = this.users.map((candidate) => candidate.id === this.user.id ? this.user : candidate);
+    this.addAuditEntry('Updated Profile', this.user.email);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
+    if (newPassword.length < 12 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      this.lastError = 'Use at least 12 characters with uppercase, lowercase, and a number.';
+      this.notify();
+      return false;
+    }
+
+    const credential = this.passwordCredentials[this.user.id];
+    const currentPasswordMatches = credential ? await this.credentialMatches(currentPassword, credential) : currentPassword === 'password';
+    if (!currentPasswordMatches) {
+      this.lastError = 'Your current password is incorrect.';
+      this.notify();
+      return false;
+    }
+
+    this.passwordCredentials[this.user.id] = await this.createCredential(newPassword);
+    this.storageService.save('passwordCredentials', this.passwordCredentials);
+    this.addAuditEntry('Changed Password', this.user.email);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  async enableTwoFactor(): Promise<string> {
+    const verificationCode = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+    this.twoFactorCredentials[this.user.id] = await this.createCredential(verificationCode);
+    this.storageService.save('twoFactorCredentials', this.twoFactorCredentials);
+    this.addAuditEntry('Enabled Two-Factor Authentication', this.user.email);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return verificationCode;
+  }
+
+  disableTwoFactor(): void {
+    delete this.twoFactorCredentials[this.user.id];
+    this.storageService.save('twoFactorCredentials', this.twoFactorCredentials);
+    this.addAuditEntry('Disabled Two-Factor Authentication', this.user.email);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+  }
+
+  hasTwoFactorEnabled(userId = this.user.id): boolean {
+    return Boolean(this.twoFactorCredentials[userId]);
+  }
+
+  updateWorkspaceSettings(maxUploadSizeMb: number, allowedFileTypes: string[]): boolean {
+    const normalizedTypes = [...new Set(allowedFileTypes.map((type) => type.trim().replace(/^\./, '').toUpperCase()).filter(Boolean))];
+    if (!Number.isFinite(maxUploadSizeMb) || maxUploadSizeMb < 1 || maxUploadSizeMb > 1024) {
+      this.lastError = 'Set a maximum upload size between 1 MB and 1024 MB.';
+      this.notify();
+      return false;
+    }
+    if (normalizedTypes.length === 0) {
+      this.lastError = 'Add at least one allowed file type.';
+      this.notify();
+      return false;
+    }
+
+    this.workspaceSettings = { maxUploadSizeMb, allowedFileTypes: normalizedTypes };
+    this.storageService.save('workspaceSettings', this.workspaceSettings);
+    this.addAuditEntry('Updated Workspace Settings', 'Document policy');
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return true;
   }
 
   openTask(id: string): void {
@@ -204,12 +342,32 @@ export class AppController {
       return null as any;
     }
 
+    const type = (input.type ?? 'PDF').toUpperCase();
+    if (!this.workspaceSettings.allowedFileTypes.includes(type)) {
+      this.lastError = `${type} files are not allowed by the current document policy.`;
+      this.notify();
+      return null as any;
+    }
+    const size = input.size ?? '1.2 MB';
+    const sizeMatch = /^\s*(\d+(?:\.\d+)?)\s*MB\s*$/i.exec(size);
+    const sizeInMb = sizeMatch ? Number(sizeMatch[1]) : Number.NaN;
+    if (!Number.isFinite(sizeInMb) || sizeInMb <= 0) {
+      this.lastError = 'Provide a valid file size in MB.';
+      this.notify();
+      return null as any;
+    }
+    if (sizeInMb > this.workspaceSettings.maxUploadSizeMb) {
+      this.lastError = `This file exceeds the ${this.workspaceSettings.maxUploadSizeMb} MB upload limit.`;
+      this.notify();
+      return null as any;
+    }
+
     const now = new Date();
     const document = new DocumentItem(
       `d${now.getTime()}`,
       input.fileName ?? `new-upload-${this.documents.length + 1}.pdf`,
-      input.type ?? 'PDF',
-      input.size ?? '1.2 MB',
+      type,
+      `${sizeInMb} MB`,
       input.uploadedBy ?? this.user.name,
       input.uploadedAt ?? now.toISOString().slice(0, 10),
       input.linkedTask,
@@ -289,16 +447,31 @@ export class AppController {
     this.notify();
   }
 
-  login(email: string, password: string): boolean {
+  async login(email: string, password: string, verificationCode?: string): Promise<boolean> {
     try {
-      const found = seedUsers.find((user) => user.email === email && password === 'password');
+      const found = this.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase());
       if (!found) {
         this.lastError = 'Invalid credentials';
         this.notify();
         return false;
       }
 
-      this.user = User.fromSeed(found);
+      const passwordCredential = this.passwordCredentials[found.id];
+      const passwordMatches = passwordCredential ? await this.credentialMatches(password, passwordCredential) : password === 'password';
+      if (!passwordMatches) {
+        this.lastError = 'Invalid credentials';
+        this.notify();
+        return false;
+      }
+
+      const twoFactorCredential = this.twoFactorCredentials[found.id];
+      if (twoFactorCredential && (!verificationCode || !(await this.credentialMatches(verificationCode, twoFactorCredential)))) {
+        this.lastError = 'Enter the six-digit verification code.';
+        this.notify();
+        return false;
+      }
+
+      this.user = found;
       this.users = this.users.some((candidate) => candidate.id === this.user.id) ? this.users : [this.user, ...this.users];
       const token = `token-${this.user.id}-${Date.now()}`;
       this.storageService.save('sessionToken', token);
@@ -334,5 +507,6 @@ export class AppController {
     this.storageService.save('notifications', this.notifications);
     this.storageService.save('users', this.users);
     this.storageService.save('auditLogs', this.auditLogs);
+    this.storageService.save('workspaceSettings', this.workspaceSettings);
   }
 }

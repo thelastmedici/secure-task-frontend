@@ -34,9 +34,9 @@ describe('AppController navigation and auth gating', () => {
     expect(events).toEqual(['tasks', 'documents']);
   });
 
-  it('login succeeds with correct credentials and persists token', () => {
+  it('login succeeds with correct credentials and persists token', async () => {
     const c = new AppController();
-    const ok = c.login('joshua@example.com', 'password');
+    const ok = await c.login('joshua@example.com', 'password');
     expect(ok).toBe(true);
     const storage = new StorageService();
     const raw = storage.load<string | null>('sessionToken', null);
@@ -44,9 +44,9 @@ describe('AppController navigation and auth gating', () => {
     expect(c.route).toBe('dashboard');
   });
 
-  it('login fails with wrong credentials and sets error', () => {
+  it('login fails with wrong credentials and sets error', async () => {
     const c = new AppController();
-    const ok = c.login('noone@example.com', 'bad');
+    const ok = await c.login('noone@example.com', 'bad');
     expect(ok).toBe(false);
     expect(c.route).not.toBe('dashboard');
     expect(c.lastError).toBe('Invalid credentials');
@@ -127,9 +127,36 @@ describe('AppController navigation and auth gating', () => {
     expect(c.lastError).toContain('permission');
   });
 
-  it('logout clears the persisted session and resets route to login', () => {
+  it('persists profile and workspace settings changes', () => {
     const c = new AppController();
-    c.login('joshua@example.com', 'password');
+
+    expect(c.updateProfile('Joshua Carter', 'joshua.carter@example.com')).toBe(true);
+    expect(c.updateWorkspaceSettings(50, ['pdf', '.png', 'PDF'])).toBe(true);
+    expect(c.user.name).toBe('Joshua Carter');
+    expect(c.workspaceSettings).toEqual({ maxUploadSizeMb: 50, allowedFileTypes: ['PDF', 'PNG'] });
+  });
+
+  it('enforces the saved document upload policy', () => {
+    const c = new AppController();
+    c.updateWorkspaceSettings(1, ['pdf']);
+
+    expect(c.uploadDocument({ fileName: 'oversize.pdf', type: 'PDF', size: '1.1 MB' })).toBeNull();
+    expect(c.lastError).toContain('exceeds');
+    expect(c.uploadDocument({ fileName: 'unsupported.docx', type: 'DOCX', size: '0.5 MB' })).toBeNull();
+    expect(c.lastError).toContain('not allowed');
+  });
+
+  it('requires the current password before changing it', async () => {
+    const c = new AppController();
+
+    expect(await c.changePassword('wrong-password', 'NewPassword123')).toBe(false);
+    expect(await c.changePassword('password', 'NewPassword123')).toBe(true);
+    expect(await c.login('joshua@example.com', 'NewPassword123')).toBe(true);
+  });
+
+  it('logout clears the persisted session and resets route to login', async () => {
+    const c = new AppController();
+    await c.login('joshua@example.com', 'password');
     c.logout();
     expect(c.route).toBe('login');
     const storage = new StorageService();

@@ -59,3 +59,8 @@ export interface NotificationItem {
   unread: boolean;
   createdAt: string;
 }
+
+export interface WorkspaceSettings {
+  maxUploadSizeMb: number;
+  allowedFileTypes: string[];
+}
