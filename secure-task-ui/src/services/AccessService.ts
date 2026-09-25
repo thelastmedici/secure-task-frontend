@@ -23,6 +23,10 @@ export class AccessService {
     return user.role === 'Admin' || user.role === 'Manager';
   }
 
+  canManageUsers(user: User): boolean {
+    return user.role === 'Admin';
+  }
+
   canCompleteTask(user: User, task: Task): boolean {
     return user.role === 'Admin' || user.role === 'Manager' || task.assignee === user.name;
   }

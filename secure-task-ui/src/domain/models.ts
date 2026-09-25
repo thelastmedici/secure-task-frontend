@@ -12,12 +12,12 @@ export class User extends BaseModel {
     public name: string,
     public email: string,
     public role: Role,
-    public status: 'Active' | 'Inactive',
+    public status: 'Active' | 'Inactive' | 'Invited',
   ) {
     super(id);
   }
 
-  static fromSeed(seed: { id: string; name: string; email: string; role: Role; status: 'Active' | 'Inactive' }) {
+  static fromSeed(seed: { id: string; name: string; email: string; role: Role; status: 'Active' | 'Inactive' | 'Invited' }) {
     return new User(seed.id, seed.name, seed.email, seed.role, seed.status);
   }
 

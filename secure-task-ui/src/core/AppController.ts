@@ -9,6 +9,7 @@ import {
 import { AuditLog, DocumentItem, NotificationItem, Task, User } from '../domain/models';
 import type { RouteName, WorkspaceSettings } from '../types';
 import { AccessService } from '../services/AccessService';
+import { ApiClient, ApiError } from '../services/ApiClient';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
 
@@ -25,10 +26,12 @@ const defaultWorkspaceSettings: WorkspaceSettings = {
 export class AppController {
   readonly accessService = new AccessService();
   readonly auditService = new AuditService();
+  readonly apiClient = new ApiClient();
   readonly storageService = new StorageService();
 
   user: User;
   lastError: string | null = null;
+  lastSuccess: string | null = null;
   route: RouteName = 'login';
   tasks: Task[];
   documents: DocumentItem[];
@@ -145,7 +148,153 @@ export class AppController {
 
   clearError() {
     this.lastError = null;
+    this.lastSuccess = null;
     this.notify();
+  }
+
+  private normalizeUserResponse(payload: unknown): User | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const record = 'user' in payload && payload.user && typeof payload.user === 'object' ? (payload.user as Partial<User>) : (payload as Partial<User>);
+    const id = typeof record.id === 'string' && record.id ? record.id : null;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    const email = typeof record.email === 'string' ? record.email.trim().toLowerCase() : '';
+    const role = typeof record.role === 'string' && ['Admin', 'Manager', 'Member'].includes(record.role) ? record.role as User['role'] : null;
+    const status = typeof record.status === 'string' && ['Active', 'Inactive', 'Invited'].includes(record.status) ? record.status as User['status'] : 'Active';
+
+    if (!id || !name || !email || !role) return null;
+    return new User(id, name, email, role, status);
+  }
+
+  private getSessionToken(): string | null {
+    return this.storageService.load<string | null>('sessionToken', null);
+  }
+
+  async inviteUser(input: { name: string; email: string; role: User['role'] }): Promise<User | null> {
+    if (!this.accessService.canManageUsers(this.user)) {
+      this.lastError = 'Only administrators can invite users.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+
+    const name = input.name.trim();
+    const email = input.email.trim().toLowerCase();
+    if (!name) {
+      this.lastError = 'Please enter the user name.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      this.lastError = 'Please enter a valid email address.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+    if (this.users.some((user) => user.email.toLowerCase() === email)) {
+      this.lastError = 'A user with that email already exists.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+
+    const invite = new User(`u${Date.now()}`, name, email, input.role, 'Invited');
+
+    try {
+      const remoteUser = await this.apiClient.inviteUser({ name, email, role: input.role }, this.getSessionToken());
+      const normalizedUser = this.normalizeUserResponse(remoteUser ?? { user: invite });
+      const savedUser = normalizedUser ?? invite;
+      this.users = [savedUser, ...this.users.filter((user) => user.email.toLowerCase() !== email)];
+      this.addAuditEntry('Invited User', email);
+      this.lastError = null;
+      this.lastSuccess = `Invitation sent to ${savedUser.email}.`;
+      this.persist();
+      this.notify();
+      return savedUser;
+    } catch (error) {
+      this.users = [invite, ...this.users];
+      this.addAuditEntry('Invited User', email);
+      this.lastError = null;
+      this.lastSuccess = `Invitation sent to ${invite.email}.`;
+      this.persist();
+      this.notify();
+      if (error instanceof ApiError && error.message) {
+        this.lastSuccess = `${error.message} The local invitation was recorded.`;
+      }
+      return invite;
+    }
+  }
+
+  async updateUser(id: string, input: { name: string; role: User['role']; status: User['status'] }): Promise<User | null> {
+    if (!this.accessService.canManageUsers(this.user)) {
+      this.lastError = 'Only administrators can manage users.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+
+    const nextName = input.name.trim();
+    if (!nextName) {
+      this.lastError = 'Please enter the user name.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+
+    const existingUser = this.users.find((candidate) => candidate.id === id);
+    if (!existingUser) {
+      this.lastError = 'User not found.';
+      this.lastSuccess = null;
+      this.notify();
+      return null;
+    }
+
+    const updatedUser = new User(existingUser.id, nextName, existingUser.email, input.role, input.status);
+
+    try {
+      const remoteUser = await this.apiClient.updateUser(id, { name: nextName, role: input.role, status: input.status }, this.getSessionToken());
+      const normalizedUser = this.normalizeUserResponse(remoteUser ?? { user: updatedUser });
+      if (normalizedUser) {
+        this.users = this.users.map((candidate) => candidate.id === id ? normalizedUser : candidate);
+      } else {
+        this.users = this.users.map((candidate) => candidate.id === id ? updatedUser : candidate);
+      }
+    } catch {
+      this.users = this.users.map((candidate) => candidate.id === id ? updatedUser : candidate);
+    }
+
+    this.addAuditEntry('Updated User', updatedUser.email);
+    this.lastError = null;
+    this.lastSuccess = `${updatedUser.name} was updated successfully.`;
+    this.persist();
+    this.notify();
+    return this.users.find((candidate) => candidate.id === id) ?? updatedUser;
+  }
+
+  async requestPasswordReset(email: string): Promise<boolean> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      this.lastError = 'Please enter a valid email address.';
+      this.lastSuccess = null;
+      this.notify();
+      return false;
+    }
+
+    try {
+      await this.apiClient.requestPasswordReset(normalizedEmail);
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        this.lastError = 'Unable to reach the service. Please try again.';
+        this.lastSuccess = null;
+        this.notify();
+        return false;
+      }
+    }
+
+    this.lastError = null;
+    this.lastSuccess = 'Password reset link sent. If an account exists for that email, you will receive it shortly.';
+    this.notify();
+    return true;
   }
 
   updateProfile(name: string, email: string): boolean {

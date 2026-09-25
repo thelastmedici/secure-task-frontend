@@ -155,6 +155,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         {controller.lastError && <div className="error-banner" role="alert">{controller.lastError} <button onClick={() => controller.clearError()}>Dismiss</button></div>}
+        {controller.lastSuccess && <div className="success-banner" role="status">{controller.lastSuccess} <button onClick={() => controller.clearError()}>Dismiss</button></div>}
         <section className="content">{children}</section>
       </main>
     </div>

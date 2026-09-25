@@ -154,6 +154,35 @@ describe('AppController navigation and auth gating', () => {
     expect(await c.login('joshua@example.com', 'NewPassword123')).toBe(true);
   });
 
+  it('allows admins to invite a new user and records the invitation locally', async () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u1', name: 'Admin', email: 'a@example.com', role: 'Admin', status: 'Active' });
+
+    const invited = await c.inviteUser({ name: 'Ava Patel', email: 'ava@example.com', role: 'Member' });
+
+    expect(invited?.email).toBe('ava@example.com');
+    expect(c.users.some((user) => user.email === 'ava@example.com')).toBe(true);
+    expect(c.users.find((user) => user.email === 'ava@example.com')?.status).toBe('Invited');
+  });
+
+  it('blocks non-admins from inviting users and denies invalid password reset requests', async () => {
+    const c = new AppController();
+    c.user = User.fromSeed({ id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active' });
+
+    expect(await c.inviteUser({ name: 'Nope', email: 'nope@example.com', role: 'Member' })).toBeNull();
+    expect(c.lastError).toContain('administrator');
+
+    expect(await c.requestPasswordReset('not-an-email')).toBe(false);
+    expect(c.lastError).toContain('valid email');
+  });
+
+  it('sends a generic password reset request for valid email addresses', async () => {
+    const c = new AppController();
+
+    expect(await c.requestPasswordReset('joshua@example.com')).toBe(true);
+    expect(c.lastSuccess).toContain('Password reset');
+  });
+
   it('logout clears the persisted session and resets route to login', async () => {
     const c = new AppController();
     await c.login('joshua@example.com', 'password');

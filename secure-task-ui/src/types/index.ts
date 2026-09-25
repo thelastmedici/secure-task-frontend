@@ -20,7 +20,19 @@ export interface User {
   name: string;
   email: string;
   role: Role;
-  status: 'Active' | 'Inactive';
+  status: 'Active' | 'Inactive' | 'Invited';
+}
+
+export interface InviteUserInput {
+  name: string;
+  email: string;
+  role: Role;
+}
+
+export interface UpdateUserInput {
+  name: string;
+  role: Role;
+  status: User['status'];
 }
 
 export interface Task {
