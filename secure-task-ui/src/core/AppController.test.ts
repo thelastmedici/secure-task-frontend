@@ -1,7 +1,11 @@
+import React from 'react';
 import { beforeEach, describe, it, expect } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { AppController } from './AppController';
 import { User } from '../domain/models';
 import { StorageService } from '../services/StorageService';
+import { AppProvider } from './AppContext';
+import { TaskDetailPage } from '../pages/TaskDetailPage';
 
 describe('AppController navigation and auth gating', () => {
   beforeEach(() => {
@@ -95,6 +99,26 @@ describe('AppController navigation and auth gating', () => {
     expect(completed).toBeNull();
     expect(task.status).not.toBe('Completed');
     expect(c.lastError).toContain('permission');
+  });
+
+  it('opens the linked document when its row is clicked', () => {
+    const c = new AppController();
+    const task = c.tasks.find((candidate) => candidate.status !== 'Completed')!;
+    const linkedDocument = c.documents.find((document) => document.linkedTask === task.title)!;
+    c.selectedTaskId = task.id;
+
+    render(
+      React.createElement(
+        AppProvider,
+        { controller: c },
+        React.createElement(TaskDetailPage),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(linkedDocument.fileName, 'i') }));
+
+    expect(c.route).toBe('document-detail');
+    expect(c.selectedDocumentId).toBe(linkedDocument.id);
   });
 
   it('records document previews and downloads in the audit history', () => {
