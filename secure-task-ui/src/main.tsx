@@ -24,6 +24,26 @@ function App() {
   const [documents, setDocuments] = useState<DocumentItem[]>(controller.documents);
   const [notifications, setNotifications] = useState(controller.notifications);
 
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = () => {
+      root.dataset.theme = mediaQuery.matches ? 'dark' : 'light';
+      root.style.colorScheme = mediaQuery.matches ? 'dark' : 'light';
+    };
+
+    applyTheme();
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', applyTheme);
+      return () => mediaQuery.removeEventListener('change', applyTheme);
+    }
+
+    mediaQuery.addListener(applyTheme);
+    return () => mediaQuery.removeListener(applyTheme);
+  }, []);
+
   const selectedTask = useMemo(() => tasks.find((task) => task.id === controller.selectedTaskId) ?? tasks[0], [tasks, controller.selectedTaskId]);
   const selectedDocument = useMemo(() => documents.find((doc) => doc.id === controller.selectedDocumentId) ?? documents[0], [documents, controller.selectedDocumentId]);
 

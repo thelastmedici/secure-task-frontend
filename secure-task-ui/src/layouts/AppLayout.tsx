@@ -18,14 +18,14 @@ type SearchResult = {
 };
 
 const navItems: NavigationItem[] = [
-  { route: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  { route: 'tasks', label: 'Tasks', icon: <CheckSquare size={18} /> },
-  { route: 'documents', label: 'Documents', icon: <FileText size={18} /> },
-  { route: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
-  { route: 'audit-logs', label: 'Audit Logs', icon: <History size={18} />, adminOnly: true },
-  { route: 'users', label: 'Users', icon: <Users size={18} />, adminOnly: true },
-  { route: 'roles', label: 'Roles', icon: <Shield size={18} />, adminOnly: true },
-  { route: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  { route: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} strokeWidth={1.5} /> },
+  { route: 'tasks', label: 'Tasks', icon: <CheckSquare size={16} strokeWidth={1.5} /> },
+  { route: 'documents', label: 'Documents', icon: <FileText size={16} strokeWidth={1.5} /> },
+  { route: 'notifications', label: 'Notifications', icon: <Bell size={16} strokeWidth={1.5} /> },
+  { route: 'audit-logs', label: 'Audit Logs', icon: <History size={16} strokeWidth={1.5} />, adminOnly: true },
+  { route: 'users', label: 'Users', icon: <Users size={16} strokeWidth={1.5} />, adminOnly: true },
+  { route: 'roles', label: 'Roles', icon: <Shield size={16} strokeWidth={1.5} />, adminOnly: true },
+  { route: 'settings', label: 'Settings', icon: <Settings size={16} strokeWidth={1.5} /> },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -102,7 +102,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <button type="button" className="nav-item logout" onClick={() => controller.logout()}>
-          <LogOut size={18} /> Logout
+          <LogOut size={16} strokeWidth={1.5} /> Logout
         </button>
       </aside>
 
@@ -111,7 +111,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="global-search">
           <label className="search-box">
             <span className="sr-only">Search tasks, documents, and users</span>
-            <Search size={18} />
+            <Search size={16} strokeWidth={1.5} />
             <input
               type="search"
               value={searchQuery}
@@ -139,7 +139,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ''}`}
               onClick={() => controller.navigate('notifications')}
             >
-              <Bell size={18} />
+              <Bell size={16} strokeWidth={1.5} />
               {unreadNotifications > 0 && <span className="notification-count" aria-hidden="true">{unreadNotifications}</span>}
             </button>
             {unreadNotifications > 0 && (

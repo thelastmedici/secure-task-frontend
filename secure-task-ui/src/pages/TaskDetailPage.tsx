@@ -19,7 +19,7 @@ export function TaskDetailPage() {
         <section className="card"><h2>Linked Documents</h2>{linkedDocuments.map((doc) => (
           <button key={doc.id} type="button" className="list-row text-link-button" onClick={() => controller.openDocument(doc.id)} aria-label={`Open ${doc.fileName}`}>
             <div><strong>{doc.fileName}</strong><span>{doc.size} · {doc.uploadedBy}</span></div>
-            <Paperclip size={18}/>
+            <Paperclip size={16} strokeWidth={1.5} />
           </button>
         ))}<button onClick={() => controller.navigate('documents')}>Attach Document</button></section>
       </div>
