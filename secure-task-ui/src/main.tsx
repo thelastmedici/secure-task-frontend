@@ -26,22 +26,12 @@ function App() {
 
   React.useEffect(() => {
     const root = document.documentElement;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const storedTheme = localStorage.getItem('theme');
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : systemTheme;
 
-    const applyTheme = () => {
-      root.dataset.theme = mediaQuery.matches ? 'dark' : 'light';
-      root.style.colorScheme = mediaQuery.matches ? 'dark' : 'light';
-    };
-
-    applyTheme();
-
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', applyTheme);
-      return () => mediaQuery.removeEventListener('change', applyTheme);
-    }
-
-    mediaQuery.addListener(applyTheme);
-    return () => mediaQuery.removeListener(applyTheme);
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
   }, []);
 
   const selectedTask = useMemo(() => tasks.find((task) => task.id === controller.selectedTaskId) ?? tasks[0], [tasks, controller.selectedTaskId]);

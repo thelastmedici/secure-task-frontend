@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { useAppController } from '../core/AppContext';
 
@@ -15,6 +15,18 @@ export function SettingsPage() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [, setSecurityVersion] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const saveProfile = () => {
     if (controller.updateProfile(name, email)) setMessage('Profile saved.');
@@ -64,6 +76,16 @@ export function SettingsPage() {
           <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <button type="button" className="primary-button" onClick={saveProfile}>Save Profile</button>
+        </section>
+        <section className="card">
+          <h2>Appearance</h2>
+          <div className="settings-form">
+            <label>Theme</label>
+            <div className="dialog-actions" style={{ justifyContent: 'flex-start' }}>
+              <button type="button" className={theme === 'light' ? 'primary-button' : ''} onClick={() => setTheme('light')}>Light</button>
+              <button type="button" className={theme === 'dark' ? 'primary-button' : ''} onClick={() => setTheme('dark')}>Dark</button>
+            </div>
+          </div>
         </section>
         <section className="card">
           <h2>Security</h2>
