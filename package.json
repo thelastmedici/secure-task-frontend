@@ -1,0 +1,13 @@
+{
+  "name": "secure-task-frontend",
+  "private": true,
+  "workspaces": [
+    "secure-task-ui"
+  ],
+  "scripts": {
+    "dev": "npm --workspace secure-task-ui run dev -- --host 0.0.0.0",
+    "build": "npm --workspace secure-task-ui run build",
+    "preview": "npm --workspace secure-task-ui run preview",
+    "test": "npm --workspace secure-task-ui run test"
+  }
+}
