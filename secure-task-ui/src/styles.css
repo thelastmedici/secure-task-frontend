@@ -180,8 +180,70 @@ nav { display: grid; gap: 6px; }
 .search-empty { padding: 10px 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .top-actions, .profile-pill { display: flex; align-items: center; gap: 12px; }
+.theme-toggle {
+  width: 104px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #edf1f7 0%, #edf1f7 50%, #1f1d66 50%, #1a1457 100%);
+  padding: 0;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.12), 0 4px 8px rgb(15 23 42 / 0.12);
+}
+.theme-toggle .theme-toggle-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+}
+.theme-toggle .theme-toggle-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 34px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 3px 10px rgb(15 23 42 / 0.18);
+  transition: transform 180ms ease;
+}
+.theme-toggle.light .theme-toggle-thumb {
+  transform: translateX(0);
+}
+.theme-toggle.dark .theme-toggle-thumb {
+  transform: translateX(62px);
+}
+.theme-toggle .theme-toggle-sun,
+.theme-toggle .theme-toggle-moon {
+  position: absolute;
+  top: 9px;
+  font-size: 17px;
+  line-height: 1;
+  z-index: 1;
+}
+.theme-toggle.light .theme-toggle-sun { left: 11px; color: #0f172a; }
+.theme-toggle.light .theme-toggle-moon { right: 11px; color: #0f172a; }
+.theme-toggle.dark .theme-toggle-sun { left: 11px; color: rgba(255, 255, 255, 0.92); }
+.theme-toggle.dark .theme-toggle-moon { right: 11px; color: rgba(255, 255, 255, 0.92); }
 .icon-button { width: 36px; height: 36px; justify-content: center; padding: 0; }
 .notification-button { position: relative; }
+.mark-all-read-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+.mark-all-read-button:hover { border-color: color-mix(in srgb, var(--border) 60%, var(--accent)); }
+.mark-all-read-button span { line-height: 1; }
 .notification-count {
   position: absolute;
   top: -5px;

@@ -1,5 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { Bell, FileText, History, LayoutDashboard, LogOut, Search, Settings, Shield, Users, CheckSquare } from 'lucide-react';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useAppController } from '../core/AppContext';
 import type { RouteName } from '../types';
 
@@ -133,6 +134,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           )}
           </div>
           <div className="top-actions">
+            <ThemeToggle />
             <button
               type="button"
               className="icon-button notification-button"
@@ -143,7 +145,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
               {unreadNotifications > 0 && <span className="notification-count" aria-hidden="true">{unreadNotifications}</span>}
             </button>
             {unreadNotifications > 0 && (
-              <button type="button" className="icon-button" onClick={() => controller.markAllNotificationsRead()} title="Mark all notifications as read">Mark all read</button>
+              <button type="button" className="mark-all-read-button" onClick={() => controller.markAllNotificationsRead()} title="Mark all notifications as read">
+                <Bell size={14} strokeWidth={2} />
+                <span>Mark all read</span>
+              </button>
             )}
             <div className="profile-pill">
               <div className="avatar" aria-hidden="true">{userInitial}</div>
