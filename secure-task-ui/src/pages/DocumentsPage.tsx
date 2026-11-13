@@ -39,25 +39,36 @@ export function DocumentsPage() {
 
   return (
     <>
-      <PageHeader title="Documents" description="Securely upload, link, preview, and audit document access." action={<button className="primary-button" disabled={!controller.accessService.canUploadDocument(controller.user)} onClick={() => setUploading((u) => !u)}><Upload size={16}/> Upload Document</button>} />
+      <PageHeader
+        title="Documents"
+        description="Securely upload, link, preview, and audit document access."
+        action={<button className="primary-button" disabled={!controller.accessService.canUploadDocument(controller.user)} onClick={() => setUploading((u) => !u)}><Upload size={16}/> Upload Document</button>}
+      />
 
       {uploading && (
         <section className="card">
-          <h3>Upload Document</h3>
+          <div className="card-header"><h2>Upload Document</h2><button type="button" onClick={() => setUploading(false)}>Close</button></div>
           {localError && <div className="form-error">{localError}</div>}
-          <div className="form-row"><input placeholder="File name (e.g. doc.pdf)" value={fileName} onChange={(e) => setFileName(e.target.value)} /></div>
-          <div className="form-row"><select value={type} onChange={(e) => setType(e.target.value)}>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}</select></div>
-          <div className="form-row"><input aria-label="File size in MB" type="number" min="0.1" step="0.1" placeholder="File size in MB" value={sizeInMb} onChange={(e) => setSizeInMb(e.target.value)} /></div>
-          <div className="form-row"><button className="primary-button" onClick={submitUpload}>Upload</button> <button onClick={() => { setUploading(false); setLocalError(null); }}>Cancel</button></div>
+          <div className="settings-form">
+            <label>File name<input placeholder="File name (e.g. doc.pdf)" value={fileName} onChange={(e) => setFileName(e.target.value)} /></label>
+            <label>Type<select value={type} onChange={(e) => setType(e.target.value)}>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}</select></label>
+            <label>File size (MB)<input aria-label="File size in MB" type="number" min="0.1" step="0.1" placeholder="File size in MB" value={sizeInMb} onChange={(e) => setSizeInMb(e.target.value)} /></label>
+            <div className="dialog-actions"><button type="button" onClick={() => { setUploading(false); setLocalError(null); }}>Cancel</button><button className="primary-button" type="button" onClick={submitUpload}>Upload</button></div>
+          </div>
         </section>
       )}
 
-      <div className="toolbar">
-        <input aria-label="Search documents" placeholder="Search documents..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select aria-label="Filter documents by file type" value={fileType} onChange={(event) => setFileType(event.target.value)}>
-          <option value="all">All file types</option>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}
-        </select>
+      <div className="task-toolbar">
+        <div className="toolbar-row">
+          <label className="search-box">
+            <input aria-label="Search documents" placeholder="Search documents..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <select aria-label="Filter documents by file type" value={fileType} onChange={(event) => setFileType(event.target.value)}>
+            <option value="all">All file types</option>{controller.workspaceSettings.allowedFileTypes.map((allowedType) => <option key={allowedType}>{allowedType}</option>)}
+          </select>
+        </div>
       </div>
+
       <section className="card table-card"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded By</th><th>Date</th><th /></tr></thead><tbody>
         {filtered.map((doc: DocumentItem) => <tr key={doc.id}><td><strong>{doc.fileName}</strong><span>{doc.linkedTask}</span></td><td>{doc.type}</td><td>{doc.size}</td><td>{doc.uploadedBy}</td><td>{doc.uploadedAt}</td><td><button onClick={() => controller.openDocument(doc.id)}>Open</button></td></tr>)}
         {filtered.length === 0 && <tr><td colSpan={6} className="empty-table">No documents match the current filters.</td></tr>}

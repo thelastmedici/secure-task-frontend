@@ -10,6 +10,18 @@ export function RolesPage() {
   return (
     <>
       <PageHeader title="Roles & Permissions" description="Control access using clear, auditable RBAC rules." />
+
+      <div className="metrics-grid dashboard-summary-grid">
+        <div className="metric-card dashboard-summary-card">
+          <div className="metric-icon primary"><span>{roles.length}</span></div>
+          <div><strong>{roles.length}</strong><span>Role tiers</span></div>
+        </div>
+        <div className="metric-card dashboard-summary-card">
+          <div className="metric-icon success"><span>{permissions.length}</span></div>
+          <div><strong>{permissions.length}</strong><span>Permissions</span></div>
+        </div>
+      </div>
+
       <section className="card table-card">
         <table>
           <thead>
@@ -37,7 +49,7 @@ export function RolesPage() {
           </tbody>
         </table>
       </section>
-      <p style={{ marginTop: '1rem', color: '#7d89a5' }}>Current user role: {controller.user.role}</p>
+      <p className="muted-text" style={{ marginTop: '1rem' }}>Current user role: {controller.user.role}</p>
     </>
   );
 }

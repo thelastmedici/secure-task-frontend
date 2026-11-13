@@ -77,6 +77,11 @@ export function DashboardPage() {
   });
 
   const greetingName = user.name.split(' ')[0] ?? user.name;
+  const urgentTasks = [...tasks]
+    .filter((task) => task.status !== 'Completed')
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+    .slice(0, 4);
+  const securityRiskScore = Math.max(72, Math.min(98, 100 - summary.security.twoFactorAdoption + summary.overdueCount * 6));
 
   return (
     <>
@@ -86,7 +91,7 @@ export function DashboardPage() {
         <div>
           <span className="eyebrow">Good morning</span>
           <h2>{greetingName}, what needs you today?</h2>
-          <p className="muted-text">Your workspace is healthy and operational. Here is the most important work for your next review cycle.</p>
+          <p className="muted-text">Your workspace is healthy and operational. A few items need review, but the security baseline remains strong.</p>
         </div>
         <div className="hero-actions">
           <button className="primary-button" onClick={() => controller.navigate('tasks')}>Open tasks</button>
@@ -99,7 +104,7 @@ export function DashboardPage() {
           <div className="metric-icon danger"><AlertTriangle size={18} /></div>
           <div>
             <strong>{summary.overdueCount}</strong>
-            <span>My overdue</span>
+            <span>Overdue</span>
           </div>
         </div>
         <div className="metric-card dashboard-summary-card">
@@ -132,7 +137,7 @@ export function DashboardPage() {
             <button className="text-link-button" onClick={() => controller.navigate('tasks')}>View all <ArrowRight size={14} /></button>
           </div>
           <div className="stack-list">
-            {tasks.slice(0, 4).map((task) => (
+            {urgentTasks.map((task) => (
               <div className="list-row" key={task.id}>
                 <div className="task-row-copy">
                   <strong>{task.title}</strong>
@@ -151,10 +156,14 @@ export function DashboardPage() {
           </div>
           <div className="security-health">
             <div className="health-row">
+              <span>Threat posture</span>
+              <strong>{Math.round(securityRiskScore)} / 100</strong>
+            </div>
+            <div className="meter"><span style={{ width: `${Math.round(securityRiskScore)}%` }} /></div>
+            <div className="health-row">
               <span>2FA adoption</span>
               <strong>{summary.security.twoFactorAdoption}%</strong>
             </div>
-            <div className="meter"><span style={{ width: `${summary.security.twoFactorAdoption}%` }} /></div>
             <div className="health-row">
               <span>Inactive users</span>
               <strong>{summary.security.inactiveUsers}</strong>

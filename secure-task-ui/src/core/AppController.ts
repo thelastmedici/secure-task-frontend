@@ -484,6 +484,56 @@ export class AppController {
     return completedTask;
   }
 
+  updateTaskStatus(id: string, status: Task['status']): Task | null {
+    const task = this.tasks.find((candidate) => candidate.id === id);
+    if (!task) {
+      this.lastError = 'Task not found.';
+      this.notify();
+      return null;
+    }
+
+    const updatedTask = new Task(
+      task.id,
+      task.title,
+      task.description,
+      status,
+      task.priority,
+      task.assignee,
+      task.dueDate,
+    );
+
+    this.tasks = this.tasks.map((candidate) => candidate.id === id ? updatedTask : candidate);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return updatedTask;
+  }
+
+  updateTaskPriority(id: string, priority: Task['priority']): Task | null {
+    const task = this.tasks.find((candidate) => candidate.id === id);
+    if (!task) {
+      this.lastError = 'Task not found.';
+      this.notify();
+      return null;
+    }
+
+    const updatedTask = new Task(
+      task.id,
+      task.title,
+      task.description,
+      task.status,
+      priority,
+      task.assignee,
+      task.dueDate,
+    );
+
+    this.tasks = this.tasks.map((candidate) => candidate.id === id ? updatedTask : candidate);
+    this.lastError = null;
+    this.persist();
+    this.notify();
+    return updatedTask;
+  }
+
   uploadDocument(input: Partial<DocumentItem> = {}): DocumentItem {
     if (!this.accessService.canUploadDocument(this.user)) {
       this.lastError = 'You do not have permission to upload documents.';
