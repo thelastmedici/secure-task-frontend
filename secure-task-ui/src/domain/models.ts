@@ -13,12 +13,13 @@ export class User extends BaseModel {
     public email: string,
     public role: Role,
     public status: 'Active' | 'Inactive' | 'Invited',
+    public lastActive?: string,
   ) {
     super(id);
   }
 
-  static fromSeed(seed: { id: string; name: string; email: string; role: Role; status: 'Active' | 'Inactive' | 'Invited' }) {
-    return new User(seed.id, seed.name, seed.email, seed.role, seed.status);
+  static fromSeed(seed: { id: string; name: string; email: string; role: Role; status: 'Active' | 'Inactive' | 'Invited'; lastActive?: string }) {
+    return new User(seed.id, seed.name, seed.email, seed.role, seed.status, seed.lastActive);
   }
 
   isAdmin(): boolean {

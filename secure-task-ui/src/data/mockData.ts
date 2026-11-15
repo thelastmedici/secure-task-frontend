@@ -6,13 +6,14 @@ export const currentUser: User = {
   email: 'joshua@example.com',
   role: 'Admin',
   status: 'Active',
+  lastActive: '2026-11-15T09:40:00.000Z',
 };
 
 export const users: User[] = [
   currentUser,
-  { id: 'u2', name: 'Sarah Connor', email: 'sarah@example.com', role: 'Manager', status: 'Active' },
-  { id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active' },
-  { id: 'u4', name: 'Amara Stone', email: 'amara@example.com', role: 'Member', status: 'Inactive' },
+  { id: 'u2', name: 'Sarah Connor', email: 'sarah@example.com', role: 'Manager', status: 'Active', lastActive: '2026-11-15T08:25:00.000Z' },
+  { id: 'u3', name: 'Daniel Kim', email: 'daniel@example.com', role: 'Member', status: 'Active', lastActive: '2026-11-14T16:50:00.000Z' },
+  { id: 'u4', name: 'Amara Stone', email: 'amara@example.com', role: 'Member', status: 'Inactive', lastActive: '2026-11-09T13:20:00.000Z' },
 ];
 
 export const tasks: Task[] = [

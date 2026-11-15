@@ -162,7 +162,7 @@ export class AppController {
     const status = typeof record.status === 'string' && ['Active', 'Inactive', 'Invited'].includes(record.status) ? record.status as User['status'] : 'Active';
 
     if (!id || !name || !email || !role) return null;
-    return new User(id, name, email, role, status);
+    return new User(id, name, email, role, status, typeof record.lastActive === 'string' ? record.lastActive : undefined);
   }
 
   private getSessionToken(): string | null {
@@ -249,12 +249,13 @@ export class AppController {
       return null;
     }
 
-    const updatedUser = new User(existingUser.id, nextName, existingUser.email, input.role, input.status);
+    const updatedUser = new User(existingUser.id, nextName, existingUser.email, input.role, input.status, existingUser.lastActive);
 
     try {
       const remoteUser = await this.apiClient.updateUser(id, { name: nextName, role: input.role, status: input.status }, this.getSessionToken());
       const normalizedUser = this.normalizeUserResponse(remoteUser ?? { user: updatedUser });
       if (normalizedUser) {
+        normalizedUser.lastActive ??= existingUser.lastActive;
         this.users = this.users.map((candidate) => candidate.id === id ? normalizedUser : candidate);
       } else {
         this.users = this.users.map((candidate) => candidate.id === id ? updatedUser : candidate);
@@ -316,7 +317,7 @@ export class AppController {
       return false;
     }
 
-    this.user = new User(this.user.id, normalizedName, normalizedEmail, this.user.role, this.user.status);
+    this.user = new User(this.user.id, normalizedName, normalizedEmail, this.user.role, this.user.status, this.user.lastActive);
     this.users = this.users.map((candidate) => candidate.id === this.user.id ? this.user : candidate);
     this.addAuditEntry('Updated Profile', this.user.email);
     this.lastError = null;
@@ -670,8 +671,10 @@ export class AppController {
         return false;
       }
 
-      this.user = found;
-      this.users = this.users.some((candidate) => candidate.id === this.user.id) ? this.users : [this.user, ...this.users];
+      this.user = new User(found.id, found.name, found.email, found.role, found.status, new Date().toISOString());
+      this.users = this.users.some((candidate) => candidate.id === this.user.id)
+        ? this.users.map((candidate) => candidate.id === this.user.id ? this.user : candidate)
+        : [this.user, ...this.users];
       const token = `token-${this.user.id}-${Date.now()}`;
       this.storageService.save('sessionToken', token);
       this.storageService.save('sessionUserId', this.user.id);

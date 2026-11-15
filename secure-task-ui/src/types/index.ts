@@ -21,6 +21,7 @@ export interface User {
   email: string;
   role: Role;
   status: 'Active' | 'Inactive' | 'Invited';
+  lastActive?: string;
 }
 
 export interface InviteUserInput {

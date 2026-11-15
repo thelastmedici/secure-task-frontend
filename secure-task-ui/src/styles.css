@@ -988,6 +988,75 @@ tr:last-child td { border-bottom: 0; }
 .payload-source { display: block; margin-top: 5px; color: var(--text-muted); font-size: 11px; }
 .audit-payload pre { margin: 0; overflow-x: auto; padding: 12px; border-radius: 8px; background: var(--surface-2); color: var(--text); font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
+/* Users and role access */
+.user-form-card { margin-bottom: 18px; }
+.user-form-card .card-header > div, .permission-matrix-card .card-header > div, .view-role-card .card-header > div { display: grid; gap: 3px; }
+.user-form-card h2, .permission-matrix-card h2, .view-role-card h2 { margin: 0; }
+.user-form-card .muted-text, .permission-matrix-card .muted-text, .view-role-card .muted-text { margin: 0; }
+.user-invite-grid { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(320px, 1.1fr); gap: 22px; align-items: start; }
+.invite-role-preview { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.invite-preview-user { display: flex; align-items: center; gap: 11px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+.invite-preview-user > span:nth-child(2) { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.invite-preview-user small, .user-name-cell small { color: var(--text-muted); font-size: 11px; }
+.invite-preview-user > span:nth-child(2) strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-avatar { width: 36px; height: 36px; display: grid; place-items: center; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 850; }
+.user-avatar.large { width: 42px; height: 42px; }
+.avatar-admin, .role-admin { --role-color: #7c3aed; --role-soft: color-mix(in srgb, #7c3aed 12%, var(--surface)); }
+.avatar-manager, .role-manager { --role-color: #2563eb; --role-soft: color-mix(in srgb, #3b82f6 12%, var(--surface)); }
+.avatar-member, .role-member { --role-color: #07845b; --role-soft: color-mix(in srgb, #10b981 12%, var(--surface)); }
+.avatar-admin, .avatar-manager, .avatar-member, .role-admin, .role-manager, .role-member { background: var(--role-soft); color: var(--role-color); }
+.role-pill { display: inline-flex; align-items: center; width: fit-content; padding: 4px 8px; border-radius: 999px; background: var(--role-soft, var(--surface-2)); color: var(--role-color, var(--text-muted)); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.preview-list-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.preview-list-heading span { color: var(--text-muted); }
+.role-preview-list { display: grid; gap: 11px; max-height: 240px; overflow: auto; padding: 0; margin: 0; list-style: none; }
+.role-preview-list li { display: flex; gap: 9px; align-items: flex-start; color: var(--success); }
+.role-preview-list li > span { display: grid; gap: 2px; color: var(--text); }
+.role-preview-list strong { font-size: 12px; }
+.role-preview-list small { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.users-table-card table { min-width: 760px; }
+.user-name-cell { display: flex; align-items: center; gap: 10px; min-width: 160px; }
+.user-name-cell > span:last-child { display: grid; gap: 2px; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.status-pill > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-active { color: var(--success); background: color-mix(in srgb, var(--success) 11%, var(--surface)); }
+.status-invited { color: var(--accent); background: var(--accent-soft); }
+.status-inactive { color: var(--text-muted); background: var(--surface-2); }
+.last-active-cell { color: var(--text-muted); white-space: nowrap; font-size: 12px; }
+.roles-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.permission-matrix-card, .view-role-card { margin-bottom: 18px; }
+.matrix-source, .preview-mode-pill { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--success) 26%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--success) 8%, var(--surface)); color: var(--success); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.matrix-scroll { overflow-x: auto; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.permission-matrix { min-width: 650px; }
+.permission-matrix th:not(:first-child), .permission-matrix td:not(:first-child) { width: 125px; text-align: center; }
+.permission-matrix td { padding-top: 12px; padding-bottom: 12px; }
+.permission-description { display: grid; gap: 3px; }
+.permission-description small { color: var(--text-muted); font-size: 11px; font-weight: 400; }
+.permission-cell { width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 50%; font-size: 15px; font-weight: 700; }
+.permission-cell.granted { background: color-mix(in srgb, var(--success) 12%, var(--surface)); color: var(--success); }
+.permission-cell.restricted { background: var(--surface-2); color: var(--text-muted); }
+.matrix-footnote { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--text-muted); font-size: 11px; }
+.matrix-footnote svg { flex: none; margin-top: 1px; }
+.view-role-select { display: grid; gap: 4px; min-width: 150px; color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.view-role-select select { padding: 7px 9px; }
+.role-preview-summary { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.role-preview-avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; }
+.role-preview-summary > span:nth-child(2) { display: grid; gap: 2px; flex: 1; }
+.role-preview-summary small { color: var(--text-muted); font-size: 11px; }
+.preview-mode-pill { background: var(--surface); color: var(--text-muted); border-color: var(--border); }
+.route-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.route-preview-item { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 10px; }
+.route-preview-item.available { background: color-mix(in srgb, var(--success) 4%, var(--surface)); }
+.route-preview-item.unavailable { background: var(--surface-2); opacity: .75; }
+.route-preview-icon { width: 27px; height: 27px; display: grid; place-items: center; flex: none; border-radius: 8px; background: color-mix(in srgb, var(--success) 12%, var(--surface)); color: var(--success); }
+.route-preview-item.unavailable .route-preview-icon { background: var(--surface); color: var(--text-muted); }
+.route-preview-item > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.route-preview-item strong { font-size: 12px; }
+.route-preview-item small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.route-state { color: var(--success); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.route-preview-item.unavailable .route-state { color: var(--text-muted); }
+.role-preview-denied { display: flex; align-items: center; gap: 8px; padding: 14px; color: var(--text-muted); background: var(--surface-2); border-radius: 10px; }
+.role-current-note { margin-top: -4px; }
+
 @media (max-width: 960px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { gap: 16px; padding: 16px 20px; }
@@ -1002,9 +1071,13 @@ tr:last-child td { border-bottom: 0; }
   .audit-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .audit-filter-grid .search-box { grid-column: 1 / -1; max-width: none; }
   .audit-export-button { justify-self: start; }
+  .user-invite-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .audit-metrics { grid-template-columns: 1fr; }
   .audit-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .audit-payload { grid-template-columns: 1fr; gap: 10px; }
+  .roles-metrics { grid-template-columns: 1fr; }
+  .route-preview-grid { grid-template-columns: 1fr; }
+  .view-role-card .card-header { align-items: flex-start; flex-direction: column; }
 }
