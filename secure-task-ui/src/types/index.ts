@@ -53,6 +53,9 @@ export interface DocumentItem {
   uploadedBy: string;
   uploadedAt: string;
   linkedTask?: string;
+  /** IDB key for the original uploaded binary. Seed/API records may not include one. */
+  fileStorageKey?: string;
+  version?: number;
 }
 
 export interface AuditLog {

@@ -69,6 +69,8 @@ export class DocumentItem extends BaseModel {
     public uploadedBy: string,
     public uploadedAt: string,
     public linkedTask?: string,
+    public fileStorageKey?: string,
+    public version = 1,
   ) {
     super(id);
   }
@@ -81,6 +83,8 @@ export class DocumentItem extends BaseModel {
     uploadedBy: string;
     uploadedAt: string;
     linkedTask?: string;
+    fileStorageKey?: string;
+    version?: number;
   }) {
     return new DocumentItem(
       seed.id,
@@ -90,6 +94,8 @@ export class DocumentItem extends BaseModel {
       seed.uploadedBy,
       seed.uploadedAt,
       seed.linkedTask,
+      seed.fileStorageKey,
+      seed.version,
     );
   }
 }
