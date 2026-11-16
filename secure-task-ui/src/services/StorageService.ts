@@ -52,6 +52,11 @@ export class StorageService {
     }
   }
 
+  remove(key: string): void {
+    if (!this.storage) return;
+    try { this.storage.removeItem(key); } catch { /* no-op in restricted browsing modes */ }
+  }
+
   clear(): void {
     if (!this.storage) return;
 
@@ -59,6 +64,7 @@ export class StorageService {
       if ('removeItem' in this.storage) {
         this.storage.removeItem('sessionToken');
         this.storage.removeItem('sessionUserId');
+        this.storage.removeItem('sessionInfo');
         this.storage.removeItem('tasks');
         this.storage.removeItem('documents');
         this.storage.removeItem('notifications');
@@ -67,6 +73,7 @@ export class StorageService {
         this.storage.removeItem('workspaceSettings');
         this.storage.removeItem('passwordCredentials');
         this.storage.removeItem('twoFactorCredentials');
+        this.storage.removeItem('twoFactorSettings');
       }
     } catch {
       // no-op to keep the UI resilient in restricted browsing modes

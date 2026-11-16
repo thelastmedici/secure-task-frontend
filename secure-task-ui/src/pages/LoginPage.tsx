@@ -12,7 +12,7 @@ export function LoginPage() {
 
   const submit = async () => {
     const didLogin = await controller.login(email.trim(), password, verificationCode);
-    setRequiresVerificationCode(!didLogin && controller.lastError === 'Enter the six-digit verification code.');
+    setRequiresVerificationCode(!didLogin && controller.lastError === 'Enter a valid authenticator or recovery code.');
   };
 
   const handleResetPassword = async () => {
@@ -44,7 +44,7 @@ export function LoginPage() {
           Password
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        {requiresVerificationCode && <label>Verification code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={verificationCode} onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))} /></label>}
+        {requiresVerificationCode && <label>Authenticator or recovery code<input autoComplete="one-time-code" maxLength={17} value={verificationCode} onChange={(e) => setVerificationCode(e.target.value.toUpperCase().replace(/[^A-Z2-7-]/g, ''))} /><small className="muted-text">Enter a current 6-digit code or one unused recovery code.</small></label>}
         <button className="primary-button" type="button" onClick={submit}>Login</button>
         {!isPasswordResetOpen ? (
           <button type="button" className="text-link-button" onClick={() => { setResetEmail(email); setIsPasswordResetOpen(true); }}>Forgot password?</button>

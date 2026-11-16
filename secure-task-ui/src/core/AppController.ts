@@ -7,15 +7,21 @@ import {
   users as seedUsers,
 } from '../data/mockData';
 import { AuditLog, DocumentItem, NotificationItem, Task, User } from '../domain/models';
-import type { RouteName, WorkspaceSettings } from '../types';
+import type { ActiveSession, RouteName, WorkspaceSettings } from '../types';
 import { AccessService } from '../services/AccessService';
 import { ApiClient, ApiError } from '../services/ApiClient';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
+import { generateRecoveryCodes, generateTotpSecret, verifyTotp } from '../services/TotpService';
 
 type SecretCredential = {
   salt: string;
   hash: string;
+};
+
+type TwoFactorCredential = {
+  secret: string;
+  recoveryCodes: SecretCredential[];
 };
 
 const defaultWorkspaceSettings: WorkspaceSettings = {
@@ -39,10 +45,11 @@ export class AppController {
   users: User[];
   auditLogs: AuditLog[];
   workspaceSettings: WorkspaceSettings;
+  activeSessions: ActiveSession[] = [];
   selectedTaskId: string;
   selectedDocumentId: string;
   private passwordCredentials: Record<string, SecretCredential>;
-  private twoFactorCredentials: Record<string, SecretCredential>;
+  private twoFactorCredentials: Record<string, TwoFactorCredential>;
 
   constructor() {
     this.user = User.fromSeed(currentUser);
@@ -54,7 +61,7 @@ export class AppController {
     this.auditLogs = this.storageService.load('auditLogs', seedAuditLogs.map(AuditLog.fromSeed));
     this.workspaceSettings = this.storageService.load('workspaceSettings', defaultWorkspaceSettings);
     this.passwordCredentials = this.storageService.load('passwordCredentials', {});
-    this.twoFactorCredentials = this.storageService.load('twoFactorCredentials', {});
+    this.twoFactorCredentials = this.storageService.load('twoFactorSettings', {});
 
     const storedUserId = this.storageService.load<string | null>('sessionUserId', null);
     const storedToken = this.storageService.load<string | null>('sessionToken', null);
@@ -63,6 +70,8 @@ export class AppController {
       if (sessionUser) {
         this.user = sessionUser;
         this.route = 'dashboard';
+        const localSession = this.storageService.load<ActiveSession | null>('sessionInfo', null);
+        this.activeSessions = localSession ? [localSession] : [];
       }
     }
 
@@ -167,6 +176,31 @@ export class AppController {
 
   private getSessionToken(): string | null {
     return this.storageService.load<string | null>('sessionToken', null);
+  }
+
+  async loadActiveSessions(): Promise<ActiveSession[]> {
+    const token = this.getSessionToken();
+    if (!token) { this.activeSessions = []; this.notify(); return this.activeSessions; }
+    try {
+      this.activeSessions = await this.apiClient.listSessions(token);
+    } catch {
+      let localSession = this.storageService.load<ActiveSession | null>('sessionInfo', null);
+      if (!localSession) {
+        const now = this.user.lastActive ?? new Date().toISOString();
+        localSession = { id: token, device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'This browser', createdAt: now, lastActive: now, isCurrent: true };
+        this.storageService.save('sessionInfo', localSession);
+      }
+      this.activeSessions = [localSession];
+    }
+    this.notify();
+    return this.activeSessions;
+  }
+
+  async revokeAllSessions(): Promise<void> {
+    const token = this.getSessionToken();
+    if (token) await this.apiClient.revokeAllSessions(token).catch(() => undefined);
+    this.activeSessions = [];
+    this.logout();
   }
 
   async inviteUser(input: { name: string; email: string; role: User['role'] }): Promise<User | null> {
@@ -350,20 +384,31 @@ export class AppController {
     return true;
   }
 
-  async enableTwoFactor(): Promise<string> {
-    const verificationCode = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
-    this.twoFactorCredentials[this.user.id] = await this.createCredential(verificationCode);
-    this.storageService.save('twoFactorCredentials', this.twoFactorCredentials);
+  beginTwoFactorSetup(): string {
+    return generateTotpSecret();
+  }
+
+  async confirmTwoFactorSetup(secret: string, verificationCode: string): Promise<string[] | null> {
+    if (!(await verifyTotp(secret, verificationCode))) {
+      this.lastError = 'That code is invalid or expired. Check your authenticator app and try again.';
+      this.notify();
+      return null;
+    }
+    const recoveryCodes = generateRecoveryCodes();
+    const recoveryCredentials = await Promise.all(recoveryCodes.map((code) => this.createCredential(code.replace('-', ''))));
+    this.twoFactorCredentials[this.user.id] = { secret, recoveryCodes: recoveryCredentials };
+    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
+    this.storageService.remove('twoFactorCredentials');
     this.addAuditEntry('Enabled Two-Factor Authentication', this.user.email);
     this.lastError = null;
     this.persist();
     this.notify();
-    return verificationCode;
+    return recoveryCodes;
   }
 
   disableTwoFactor(): void {
     delete this.twoFactorCredentials[this.user.id];
-    this.storageService.save('twoFactorCredentials', this.twoFactorCredentials);
+    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
     this.addAuditEntry('Disabled Two-Factor Authentication', this.user.email);
     this.lastError = null;
     this.persist();
@@ -371,7 +416,21 @@ export class AppController {
   }
 
   hasTwoFactorEnabled(userId = this.user.id): boolean {
-    return Boolean(this.twoFactorCredentials[userId]);
+    return Boolean(this.twoFactorCredentials[userId]?.secret);
+  }
+
+  async verifyTwoFactorCode(userId: string, code: string): Promise<boolean> {
+    const credential = this.twoFactorCredentials[userId];
+    if (!credential?.secret) return true;
+    if (await verifyTotp(credential.secret, code)) return true;
+    const normalized = code.toUpperCase().replace(/[^A-Z2-7]/g, '');
+    if (normalized.length !== 16) return false;
+    const matchIndex = await Promise.all(credential.recoveryCodes.map((entry) => this.credentialMatches(normalized, entry)))
+      .then((matches) => matches.findIndex(Boolean));
+    if (matchIndex < 0) return false;
+    credential.recoveryCodes.splice(matchIndex, 1);
+    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
+    return true;
   }
 
   updateWorkspaceSettings(maxUploadSizeMb: number, allowedFileTypes: string[]): boolean {
@@ -664,9 +723,8 @@ export class AppController {
         return false;
       }
 
-      const twoFactorCredential = this.twoFactorCredentials[found.id];
-      if (twoFactorCredential && (!verificationCode || !(await this.credentialMatches(verificationCode, twoFactorCredential)))) {
-        this.lastError = 'Enter the six-digit verification code.';
+      if (this.hasTwoFactorEnabled(found.id) && (!verificationCode || !(await this.verifyTwoFactorCode(found.id, verificationCode)))) {
+        this.lastError = 'Enter a valid authenticator or recovery code.';
         this.notify();
         return false;
       }
@@ -678,6 +736,10 @@ export class AppController {
       const token = `token-${this.user.id}-${Date.now()}`;
       this.storageService.save('sessionToken', token);
       this.storageService.save('sessionUserId', this.user.id);
+      const now = new Date().toISOString();
+      const session: ActiveSession = { id: token, device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'This browser', createdAt: now, lastActive: now, isCurrent: true };
+      this.activeSessions = [session];
+      this.storageService.save('sessionInfo', session);
       this.route = 'dashboard';
       this.lastError = null;
       this.auditLogs = [
@@ -697,6 +759,8 @@ export class AppController {
   logout(): void {
     this.storageService.save('sessionToken', null as any);
     this.storageService.save('sessionUserId', null as any);
+    this.storageService.remove('sessionInfo');
+    this.activeSessions = [];
     this.route = 'login';
     this.lastError = null;
     this.user = User.fromSeed(currentUser);

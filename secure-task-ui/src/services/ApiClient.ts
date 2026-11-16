@@ -1,7 +1,7 @@
-import type { InviteUserInput, UpdateUserInput, User } from '../types';
+import type { ActiveSession, InviteUserInput, UpdateUserInput, User } from '../types';
 
 type ApiOptions = {
-  method: 'POST' | 'PATCH';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   accessToken?: string | null;
 };
@@ -32,6 +32,15 @@ export class ApiClient {
 
   async requestPasswordReset(email: string): Promise<void> {
     await this.request('/auth/password-reset-requests', { method: 'POST', body: { email } });
+  }
+
+  async listSessions(accessToken?: string | null): Promise<ActiveSession[]> {
+    const payload = await this.request<{ sessions?: ActiveSession[] }>('/auth/sessions', { method: 'GET', accessToken });
+    return Array.isArray(payload?.sessions) ? payload.sessions : [];
+  }
+
+  async revokeAllSessions(accessToken?: string | null): Promise<void> {
+    await this.request('/auth/sessions/revoke-all', { method: 'POST', accessToken });
   }
 
   private async request<T>(path: string, options: ApiOptions): Promise<T | null> {

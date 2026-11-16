@@ -80,3 +80,11 @@ export interface WorkspaceSettings {
   maxUploadSizeMb: number;
   allowedFileTypes: string[];
 }
+
+export interface ActiveSession {
+  id: string;
+  device: string;
+  createdAt: string;
+  lastActive: string;
+  isCurrent: boolean;
+}
