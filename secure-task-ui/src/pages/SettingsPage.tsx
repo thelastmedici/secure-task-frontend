@@ -21,7 +21,8 @@ function browserName(agent: string) {
 
 export function SettingsPage() {
   const controller = useAppController();
-  const [section, setSection] = useState<SettingsSection>('Profile');
+  // Open on Security so the requested MFA and session controls are immediately visible.
+  const [section, setSection] = useState<SettingsSection>('Security');
   const [name, setName] = useState(controller.user.name);
   const [email, setEmail] = useState(controller.user.email);
   const [maxUploadSize, setMaxUploadSize] = useState(String(controller.workspaceSettings.maxUploadSizeMb));

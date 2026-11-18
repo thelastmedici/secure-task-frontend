@@ -10,6 +10,8 @@ Set `VITE_API_BASE_URL` to the backend API base URL. The client sends cookies wi
 
 Always return a generic success response to prevent account enumeration.
 
+`GET /auth/sso/google` and `GET /auth/sso/microsoft` start the configured OAuth/OIDC authorization flow. The backend must generate and validate state and PKCE values, then redirect to the frontend after creating the authenticated session. The UI buttons redirect to these server-owned initiation routes.
+
 `POST /users/invitations`
 
 ```json
@@ -27,6 +29,8 @@ The user endpoints should return either the user object or `{ "user": { ... } }`
 ## Two-factor authentication and sessions
 
 The browser demo implements RFC 6238 TOTP verification locally. A production API should own the authenticator secret and recovery-code lifecycle; it must not trust a client-submitted secret as proof of enrollment.
+
+The server should generate the enrollment secret, keep it pending with a short expiry, encrypt enabled secrets at rest, rate-limit verification attempts, and reject reuse of an accepted TOTP time step. MFA disablement and replacement require recent reauthentication. Recovery codes should be high-entropy, returned once, stored hashed, and consumed atomically.
 
 `POST /auth/totp/enrollments`
 

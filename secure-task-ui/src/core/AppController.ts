@@ -12,7 +12,7 @@ import { AccessService } from '../services/AccessService';
 import { ApiClient, ApiError } from '../services/ApiClient';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
-import { generateRecoveryCodes, generateTotpSecret, verifyTotp } from '../services/TotpService';
+import { generateRecoveryCodes, generateTotpSecret, matchingTotpCounter } from '../services/TotpService';
 
 type SecretCredential = {
   salt: string;
@@ -22,6 +22,7 @@ type SecretCredential = {
 type TwoFactorCredential = {
   secret: string;
   recoveryCodes: SecretCredential[];
+  lastUsedTotpStep?: number;
 };
 
 const defaultWorkspaceSettings: WorkspaceSettings = {
@@ -196,11 +197,20 @@ export class AppController {
     return this.activeSessions;
   }
 
-  async revokeAllSessions(): Promise<void> {
+  async revokeAllSessions(): Promise<boolean> {
     const token = this.getSessionToken();
-    if (token) await this.apiClient.revokeAllSessions(token).catch(() => undefined);
-    this.activeSessions = [];
-    this.logout();
+    try {
+      if (token) await this.apiClient.revokeAllSessions(token);
+      this.activeSessions = [];
+      this.logout();
+      return true;
+    } catch {
+      this.activeSessions = [];
+      this.logout();
+      this.lastError = 'This device was signed out, but the server could not revoke other sessions.';
+      this.notify();
+      return false;
+    }
   }
 
   async inviteUser(input: { name: string; email: string; role: User['role'] }): Promise<User | null> {
@@ -389,14 +399,15 @@ export class AppController {
   }
 
   async confirmTwoFactorSetup(secret: string, verificationCode: string): Promise<string[] | null> {
-    if (!(await verifyTotp(secret, verificationCode))) {
+    const setupCounter = await matchingTotpCounter(secret, verificationCode);
+    if (setupCounter === null) {
       this.lastError = 'That code is invalid or expired. Check your authenticator app and try again.';
       this.notify();
       return null;
     }
     const recoveryCodes = generateRecoveryCodes();
     const recoveryCredentials = await Promise.all(recoveryCodes.map((code) => this.createCredential(code.replace('-', ''))));
-    this.twoFactorCredentials[this.user.id] = { secret, recoveryCodes: recoveryCredentials };
+    this.twoFactorCredentials[this.user.id] = { secret, recoveryCodes: recoveryCredentials, lastUsedTotpStep: setupCounter };
     this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
     this.storageService.remove('twoFactorCredentials');
     this.addAuditEntry('Enabled Two-Factor Authentication', this.user.email);
@@ -422,7 +433,13 @@ export class AppController {
   async verifyTwoFactorCode(userId: string, code: string): Promise<boolean> {
     const credential = this.twoFactorCredentials[userId];
     if (!credential?.secret) return true;
-    if (await verifyTotp(credential.secret, code)) return true;
+    const matchedCounter = await matchingTotpCounter(credential.secret, code);
+    if (matchedCounter !== null) {
+      if (matchedCounter <= (credential.lastUsedTotpStep ?? -1)) return false;
+      credential.lastUsedTotpStep = matchedCounter;
+      this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
+      return true;
+    }
     const normalized = code.toUpperCase().replace(/[^A-Z2-7]/g, '');
     if (normalized.length !== 16) return false;
     const matchIndex = await Promise.all(credential.recoveryCodes.map((entry) => this.credentialMatches(normalized, entry)))

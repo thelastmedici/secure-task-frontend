@@ -43,6 +43,10 @@ export class ApiClient {
     await this.request('/auth/sessions/revoke-all', { method: 'POST', accessToken });
   }
 
+  ssoUrl(provider: 'google' | 'microsoft'): string {
+    return `${this.baseUrl}/auth/sso/${provider}`;
+  }
+
   private async request<T>(path: string, options: ApiOptions): Promise<T | null> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';

@@ -28,8 +28,7 @@ export function totpUri(secret: string, email: string): string {
   return `otpauth://totp/${label}?${params.toString()}`;
 }
 
-async function codeAt(secret: string, timestamp: number): Promise<string> {
-  const counter = Math.floor(timestamp / 30_000);
+async function codeAtCounter(secret: string, counter: number): Promise<string> {
   const message = new Uint8Array(8);
   new DataView(message.buffer).setUint32(4, counter, false);
   const secretBytes = decodeBase32(secret);
@@ -40,12 +39,18 @@ async function codeAt(secret: string, timestamp: number): Promise<string> {
   return String(binary % 1_000_000).padStart(6, '0');
 }
 
-export async function verifyTotp(secret: string, candidate: string, now = Date.now()): Promise<boolean> {
-  if (!/^\d{6}$/.test(candidate)) return false;
+export async function matchingTotpCounter(secret: string, candidate: string, now = Date.now()): Promise<number | null> {
+  if (!/^\d{6}$/.test(candidate)) return null;
+  const currentCounter = Math.floor(now / 30_000);
   for (const window of [-1, 0, 1]) {
-    if (await codeAt(secret, now + window * 30_000) === candidate) return true;
+    const counter = currentCounter + window;
+    if (await codeAtCounter(secret, counter) === candidate) return counter;
   }
-  return false;
+  return null;
+}
+
+export async function verifyTotp(secret: string, candidate: string, now = Date.now()): Promise<boolean> {
+  return (await matchingTotpCounter(secret, candidate, now)) !== null;
 }
 
 export function generateRecoveryCodes(count = 10): string[] {
