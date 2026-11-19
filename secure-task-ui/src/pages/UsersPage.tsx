@@ -1,8 +1,12 @@
-import { Check, CircleUserRound, UserPlus, X } from 'lucide-react';
+import { Check, CircleUserRound, UserPlus, UsersRound, X } from 'lucide-react';
 import { useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { useAppController } from '../core/AppContext';
 import type { Role, User } from '../types';
+import { PermissionButton } from '../components/PermissionButton';
+import { DetailTabs, type DetailTab } from '../components/DetailTabs';
+import { HistoryPanel } from '../components/HistoryPanel';
+import { EmptyState } from '../components/EmptyState';
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
@@ -32,12 +36,14 @@ export function UsersPage() {
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'Member' as Role });
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [manageForm, setManageForm] = useState({ name: '', role: 'Member' as Role, status: 'Active' as User['status'] });
+  const [userTab, setUserTab] = useState<DetailTab>('overview');
   const selectedUser = controller.users.find((user) => user.id === selectedUserId) ?? null;
   const inviteRules = controller.accessService.permissionsForRole(inviteForm.role);
 
   const openManageUser = (user: User) => {
     setSelectedUserId(user.id);
     setManageForm({ name: user.name, role: user.role, status: user.status });
+    setUserTab('overview');
   };
   const submitInvite = async () => {
     if (!canManageUsers) return;
@@ -55,7 +61,7 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Users" description="Invite, deactivate, and manage user roles." action={<button type="button" className="primary-button" disabled={!canManageUsers} onClick={() => setIsInviteOpen(true)}><UserPlus size={16}/> Invite User</button>} />
+      <PageHeader title="Users" description="Invite, deactivate, and manage user roles." action={<PermissionButton type="button" className="primary-button" allowed={canManageUsers} reason="Only admins can invite users." onClick={() => setIsInviteOpen(true)}><UserPlus size={16}/> Invite User</PermissionButton>} />
       {controller.lastError && <div className="form-error" role="alert">{controller.lastError}</div>}
       {controller.lastSuccess && <div className="form-success" role="status">{controller.lastSuccess}</div>}
 
@@ -78,15 +84,18 @@ export function UsersPage() {
 
       {selectedUser && <section className="card user-form-card">
         <div className="card-header"><div><h2>Manage {selectedUser.name}</h2><p className="muted-text">Update account details, role, and status.</p></div><button type="button" aria-label="Close manage user form" onClick={() => setSelectedUserId(null)}><X size={16}/></button></div>
+        <DetailTabs active={userTab} onChange={setUserTab} overviewLabel="Details"/>
+        {userTab === 'history' ? <HistoryPanel logs={controller.auditLogs.filter((log) => log.user === selectedUser.name || log.entity === selectedUser.name || log.entity === selectedUser.email)} emptyMessage="User events such as invitations, role changes, and sign-ins will appear here." emptyAction={<button type="button" onClick={() => setUserTab('overview')}>Return to details</button>}/> :
         <div className="settings-form">
           <label>Name<input value={manageForm.name} onChange={(event) => setManageForm((form) => ({ ...form, name: event.target.value }))} /></label>
           <label>Role<select value={manageForm.role} onChange={(event) => setManageForm((form) => ({ ...form, role: event.target.value as Role }))}>{roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>
           <label>Status<select value={manageForm.status} onChange={(event) => setManageForm((form) => ({ ...form, status: event.target.value as User['status'] }))}><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Invited">Invited</option></select></label>
           <div className="dialog-actions"><button type="button" onClick={() => setSelectedUserId(null)}>Cancel</button><button type="button" className="primary-button" onClick={() => void submitManage()}>Save changes</button></div>
         </div>
+        }
       </section>}
 
-      <section className="card table-card users-table-card"><table>
+      {controller.users.length === 0 ? <EmptyState icon={<UsersRound size={23}/>} title="Your workspace is ready for its team" description="Invite a teammate to assign work and share secure documents." action={<PermissionButton type="button" className="primary-button" allowed={canManageUsers} reason="Only admins can invite users." onClick={() => setIsInviteOpen(true)}><UserPlus size={15}/> Invite a user</PermissionButton>}/> : <section className="card table-card users-table-card"><table>
         <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Last active</th><th /></tr></thead>
         <tbody>{controller.users.map((user) => {
           const activity = lastActive(user.lastActive);
@@ -95,10 +104,10 @@ export function UsersPage() {
             <td>{user.email}</td><td><span className={`role-pill role-${user.role.toLowerCase()}`}>{user.role}</span></td>
             <td><span className={`status-pill status-${user.status.toLowerCase()}`}><span/>{user.status}</span></td>
             <td><span className="last-active-cell" title={activity.exact}>{activity.relative}</span></td>
-            <td><button type="button" disabled={!canManageUsers} onClick={() => openManageUser(user)}>Manage</button></td>
+            <td><PermissionButton type="button" allowed={canManageUsers} reason="Only admins can manage users." onClick={() => openManageUser(user)}>Manage</PermissionButton></td>
           </tr>;
-        })}{controller.users.length === 0 && <tr><td colSpan={6} className="empty-table">No users in this workspace.</td></tr>}</tbody>
-      </table></section>
+        })}</tbody>
+      </table></section>}
     </>
   );
 }

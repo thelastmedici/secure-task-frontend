@@ -1,6 +1,10 @@
 import { MessageSquareText, Paperclip } from 'lucide-react';
+import { useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
+import { PermissionButton } from '../components/PermissionButton';
+import { DetailTabs, type DetailTab } from '../components/DetailTabs';
+import { HistoryPanel } from '../components/HistoryPanel';
 import { useAppController } from '../core/AppContext';
 
 export function TaskDetailPage() {
@@ -10,12 +14,10 @@ export function TaskDetailPage() {
   const linkedDocuments = documents.filter((doc) => doc.linkedTask === task.title);
   const isCompleted = task.status === 'Completed';
   const canComplete = controller.accessService.canCompleteTask(controller.user, task);
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
   const taskActivity = controller.auditLogs.filter((log) => {
-    const entity = log.entity.toLowerCase();
-    const title = task.title.toLowerCase();
-    const assignee = task.assignee.toLowerCase();
-    return entity === title || entity === assignee || linkedDocuments.some((doc) => doc.fileName.toLowerCase() === entity) || log.action.toLowerCase().includes('task');
+    return log.entity.toLowerCase() === task.title.toLowerCase();
   });
 
   const comments = [
@@ -36,7 +38,8 @@ export function TaskDetailPage() {
   return (
     <>
       <PageHeader title={task.title} description="Task overview, comments, and activity history." action={<button onClick={() => controller.navigate('tasks')}>Back</button>} />
-
+      <DetailTabs active={activeTab} onChange={setActiveTab}/>
+      {activeTab === 'history' ? <section className="card"><div><h2>Task history</h2><p className="muted-text">Audit events recorded for this task.</p></div><HistoryPanel logs={taskActivity} emptyMessage="Task changes will be recorded here as your team works." emptyAction={<button type="button" onClick={() => setActiveTab('overview')}>Return to overview</button>}/></section> :
       <div className="task-detail-layout">
         <div className="task-detail-main">
           <section className="card">
@@ -51,9 +54,9 @@ export function TaskDetailPage() {
             <p>{task.description}</p>
 
             <div className="task-detail-actions">
-              <button className="primary-button" type="button" disabled={isCompleted || !canComplete} title={!canComplete ? 'You do not have permission to complete this task.' : undefined} onClick={() => controller.completeTask(task.id)}>
+              <PermissionButton className="primary-button" type="button" allowed={!isCompleted && canComplete} reason="Only the assignee, managers, or admins can complete this task." onClick={() => controller.completeTask(task.id)}>
                 {isCompleted ? 'Completed' : 'Mark Complete'}
-              </button>
+              </PermissionButton>
             </div>
           </section>
 
@@ -76,24 +79,6 @@ export function TaskDetailPage() {
             </div>
           </section>
 
-          <section className="card">
-            <h2>Activity</h2>
-            <div className="timeline">
-              {taskActivity.length > 0 ? (
-                taskActivity.map((log) => (
-                  <div key={log.id} className="timeline-item">
-                    <span />
-                    <div className="timeline-copy">
-                      <strong>{log.action}</strong>
-                      <small>{log.user} · {log.time}</small>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="muted-text">No related activity has been logged yet.</p>
-              )}
-            </div>
-          </section>
         </div>
 
         <aside className="task-detail-side">
@@ -142,7 +127,7 @@ export function TaskDetailPage() {
             </div>
           </section>
         </aside>
-      </div>
+      </div>}
     </>
   );
 }

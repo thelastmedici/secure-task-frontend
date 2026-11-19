@@ -6,6 +6,8 @@ import { ThemeToggle, useThemePreference } from '../components/ThemeToggle';
 import { useAppController } from '../core/AppContext';
 import { totpUri } from '../services/TotpService';
 import type { ActiveSession } from '../types';
+import { calculateSecurityScore } from '../services/SecurityScore';
+import { Skeleton } from '../components/Skeleton';
 
 type SettingsSection = 'Profile' | 'Security' | 'Notifications' | 'Workspace';
 type NotificationPreferences = { taskUpdates: boolean; documentActivity: boolean; securityAlerts: boolean; weeklyDigest: boolean };
@@ -36,11 +38,16 @@ export function SettingsPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>(controller.activeSessions);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => controller.storageService.load('notificationPreferences', defaultNotifications));
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [, setRefresh] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const { theme, setTheme } = useThemePreference();
+  const securityScore = calculateSecurityScore({
+    users: controller.users.map((user) => ({ status: user.status, mfaEnabled: controller.hasTwoFactorEnabled(user.id) })),
+    tasks: controller.tasks,
+  });
 
   useEffect(() => {
     if (!setupSecret) { setQrCode(null); return; }
@@ -51,7 +58,8 @@ export function SettingsPage() {
   useEffect(() => {
     if (section !== 'Security') return;
     let active = true;
-    controller.loadActiveSessions().then((result) => { if (active) setSessions(result); });
+    setSessionsLoading(true);
+    controller.loadActiveSessions().then((result) => { if (active) { setSessions(result); setSessionsLoading(false); } });
     return () => { active = false; };
   }, [controller, section]);
 
@@ -108,6 +116,7 @@ export function SettingsPage() {
           {section === 'Profile' && <section className="card settings-panel"><div><h2>Profile</h2><p className="muted-text">Your identity and display preferences.</p></div><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><div className="settings-divider"/><div className="settings-inline-heading"><span><strong>Appearance</strong><small>Choose how SecureFlow looks on this device.</small></span><ThemeToggle/></div><div className="dialog-actions settings-justify-start"><button type="button" className={theme === 'light' ? 'primary-button' : ''} onClick={() => setTheme('light')}>Light</button><button type="button" className={theme === 'dark' ? 'primary-button' : ''} onClick={() => setTheme('dark')}>Dark</button></div><button type="button" className="primary-button settings-save" onClick={saveProfile}>Save profile</button></section>}
 
           {section === 'Security' && <div className="settings-panel-stack">
+            <section className="card settings-panel security-score-card"><div className="card-header"><div><h2>Security score</h2><p className="muted-text">A live score based on MFA, account status, and overdue work.</p></div><span className="security-score-value">{securityScore.score}<small>/100</small></span></div><div className="security-score-meter"><span style={{ width: `${securityScore.score}%` }}/></div><div className="security-score-breakdown"><span><strong>{securityScore.mfaCoverage}%</strong><small>Active users with MFA</small></span><span><strong>{securityScore.activeAccounts}%</strong><small>Accounts active</small></span><span><strong>{securityScore.overdueWork}%</strong><small>Tasks not overdue</small></span></div></section>
             <section className="card settings-panel"><div><h2>Password</h2><p className="muted-text">Use a strong password you don’t use elsewhere.</p></div>{!isPasswordFormOpen ? <button type="button" className="wide-button" onClick={() => setIsPasswordFormOpen(true)}><KeyRound size={16}/> Change password</button> : <div className="settings-form"><label>Current password<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><label>Confirm new password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label><p className="muted-text">Use 12 or more characters, including uppercase, lowercase, and a number.</p><div className="dialog-actions"><button type="button" onClick={() => setIsPasswordFormOpen(false)}>Cancel</button><button type="button" className="primary-button" onClick={() => void changePassword()}>Update password</button></div></div>}</section>
 
             <section className="card settings-panel"><div className="security-heading"><span className="security-icon"><Shield size={19}/></span><span><h2>Authenticator app</h2><p className="muted-text">Use time-based one-time passwords (TOTP) from an authenticator app.</p></span><span className={`security-state ${controller.hasTwoFactorEnabled() ? 'enabled' : ''}`}><span/>{controller.hasTwoFactorEnabled() ? 'Enabled' : 'Not enabled'}</span></div>
@@ -119,7 +128,7 @@ export function SettingsPage() {
             </section>
 
             <section className="card settings-panel"><div className="card-header settings-session-heading"><div><h2>Active sessions</h2><p className="muted-text">Devices currently signed in to your account.</p></div><button type="button" className="danger-outline-button" disabled={!sessions.length} onClick={() => setConfirmSignOut(true)}>Sign out everywhere</button></div>
-              {sessions.length ? <div className="active-session-list">{sessions.map((session) => <div className="active-session" key={session.id}><span className="session-device-icon"><Monitor size={18}/></span><span className="active-session-details"><strong>{browserName(session.device)}{session.isCurrent && <span className="current-session-pill">This device</span>}</strong><small>Last active {new Date(session.lastActive).toLocaleString()} · Signed in {new Date(session.createdAt).toLocaleDateString()}</small></span><span className="session-active-dot" title="Session active"/></div>)}</div> : <div className="empty-sessions">No active sessions found.</div>}
+              {sessionsLoading ? <div className="session-skeleton-list" aria-label="Loading sessions"><div><Skeleton width={38} height={38}/><span><Skeleton width="145px"/><Skeleton width="210px" height={11}/></span></div><div><Skeleton width={38} height={38}/><span><Skeleton width="125px"/><Skeleton width="185px" height={11}/></span></div></div> : sessions.length ? <div className="active-session-list">{sessions.map((session) => <div className="active-session" key={session.id}><span className="session-device-icon"><Monitor size={18}/></span><span className="active-session-details"><strong>{browserName(session.device)}{session.isCurrent && <span className="current-session-pill">This device</span>}</strong><small>Last active {new Date(session.lastActive).toLocaleString()} · Signed in {new Date(session.createdAt).toLocaleDateString()}</small></span><span className="session-active-dot" title="Session active"/></div>)}</div> : <div className="empty-sessions">No active sessions found.</div>}
               <p className="muted-text session-note">Signing out everywhere revokes server sessions where the configured API supports session management, then signs this device out.</p>
             </section>
           </div>}

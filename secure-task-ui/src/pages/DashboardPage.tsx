@@ -2,6 +2,8 @@ import { AlertTriangle, ArrowRight, Bell, CalendarClock, CheckCircle2, FileText,
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppController } from '../core/AppContext';
+import { calculateSecurityScore } from '../services/SecurityScore';
+import { EmptyState } from '../components/EmptyState';
 
 export type DashboardSummary = {
   overdueCount: number;
@@ -10,6 +12,7 @@ export type DashboardSummary = {
   uploadsThisWeek: number;
   sparkline: number[];
   security: {
+    score: number;
     twoFactorAdoption: number;
     inactiveUsers: number;
     lastPolicyChange: string;
@@ -26,7 +29,7 @@ export type DashboardSummary = {
 export function buildDashboardSummary(input: {
   tasks: Array<{ status: string; assignee: string; dueDate?: string; title?: string }>;
   documents: Array<{ uploadedBy: string; uploadedAt?: string; fileName?: string }>;
-  users: Array<{ status: string }>;
+  users: Array<{ status: string; mfaEnabled?: boolean }>;
   auditLogs: Array<{ time: string; user: string; action: string; entity: string }>;
   currentUser: { name: string };
 }): DashboardSummary {
@@ -49,6 +52,13 @@ export function buildDashboardSummary(input: {
     action: log.action,
     entity: log.entity,
   }));
+  const score = calculateSecurityScore({
+    users: input.users.map((user) => ({ status: user.status, mfaEnabled: user.mfaEnabled ?? false })),
+    tasks: input.tasks,
+  }).score;
+  const mfaAdoption = input.users.some((user) => user.mfaEnabled !== undefined)
+    ? (activeUsers ? Math.round(input.users.filter((user) => user.status === 'Active' && user.mfaEnabled).length / activeUsers * 100) : 0)
+    : Math.round((activeUsers / totalUsers) * 100);
 
   return {
     overdueCount,
@@ -57,7 +67,8 @@ export function buildDashboardSummary(input: {
     uploadsThisWeek,
     sparkline: [32, 44, 36, 55, 52, 70, 64, 78],
     security: {
-      twoFactorAdoption: Math.round((activeUsers / totalUsers) * 100),
+      score,
+      twoFactorAdoption: mfaAdoption,
       inactiveUsers,
       lastPolicyChange: matchingPolicyLog ? `${matchingPolicyLog.action} · ${matchingPolicyLog.entity}` : 'No policy change yet',
     },
@@ -71,7 +82,7 @@ export function DashboardPage() {
   const summary = buildDashboardSummary({
     tasks,
     documents,
-    users,
+    users: users.map((workspaceUser) => ({ ...workspaceUser, mfaEnabled: controller.hasTwoFactorEnabled(workspaceUser.id) })),
     auditLogs,
     currentUser: user,
   });
@@ -81,7 +92,7 @@ export function DashboardPage() {
     .filter((task) => task.status !== 'Completed')
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 4);
-  const securityRiskScore = Math.max(72, Math.min(98, 100 - summary.security.twoFactorAdoption + summary.overdueCount * 6));
+  const securityRiskScore = summary.security.score;
 
   return (
     <>
@@ -137,7 +148,7 @@ export function DashboardPage() {
             <button className="text-link-button" onClick={() => controller.navigate('tasks')}>View all <ArrowRight size={14} /></button>
           </div>
           <div className="stack-list">
-            {urgentTasks.map((task) => (
+            {urgentTasks.length ? urgentTasks.map((task) => (
               <div className="list-row" key={task.id}>
                 <div className="task-row-copy">
                   <strong>{task.title}</strong>
@@ -145,7 +156,7 @@ export function DashboardPage() {
                 </div>
                 <StatusBadge status={task.status} />
               </div>
-            ))}
+            )) : <EmptyState icon={<CheckCircle2 size={22}/>} title="You’re all caught up" description="There are no open tasks to chase right now." action={<button type="button" onClick={() => controller.navigate('tasks')}>Open task list</button>}/>}
           </div>
         </section>
 
@@ -156,7 +167,7 @@ export function DashboardPage() {
           </div>
           <div className="security-health">
             <div className="health-row">
-              <span>Threat posture</span>
+              <span>Security score</span>
               <strong>{Math.round(securityRiskScore)} / 100</strong>
             </div>
             <div className="meter"><span style={{ width: `${Math.round(securityRiskScore)}%` }} /></div>

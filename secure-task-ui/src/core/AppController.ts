@@ -25,6 +25,12 @@ type TwoFactorCredential = {
   lastUsedTotpStep?: number;
 };
 
+export interface AppToast {
+  message: string;
+  tone: 'success' | 'error' | 'info';
+  action?: { label: string; run: () => void };
+}
+
 const defaultWorkspaceSettings: WorkspaceSettings = {
   maxUploadSizeMb: 25,
   allowedFileTypes: ['PDF', 'DOCX', 'XLSX', 'PNG'],
@@ -81,12 +87,23 @@ export class AppController {
   }
 
   private subscribers: Array<(c: AppController) => void> = [];
+  private toastSubscribers: Array<(toast: AppToast) => void> = [];
+  private pendingTaskUndos = new Map<string, { task: Task; auditId: string }>();
 
   subscribe(fn: (c: AppController) => void) {
     this.subscribers.push(fn);
     return () => {
       this.subscribers = this.subscribers.filter((s) => s !== fn);
     };
+  }
+
+  subscribeToasts(fn: (toast: AppToast) => void) {
+    this.toastSubscribers.push(fn);
+    return () => { this.toastSubscribers = this.toastSubscribers.filter((listener) => listener !== fn); };
+  }
+
+  private emitToast(toast: AppToast) {
+    this.toastSubscribers.forEach((listener) => listener(toast));
   }
 
   private notify() {
@@ -546,8 +563,10 @@ export class AppController {
     );
     const now = new Date();
     this.tasks = this.tasks.map((candidate) => candidate.id === id ? completedTask : candidate);
+    const auditId = `a${now.getTime()}`;
+    this.pendingTaskUndos.set(id, { task, auditId });
     this.auditLogs = [
-      new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Completed Task', task.title, '127.0.0.1'),
+      new AuditLog(auditId, now.toISOString(), this.user.name, 'Completed Task', task.title, '127.0.0.1'),
       ...this.auditLogs,
     ];
     this.notifications = [
@@ -558,13 +577,40 @@ export class AppController {
     this.lastError = null;
     this.persist();
     this.notify();
+    this.emitToast({
+      message: `“${task.title}” completed`,
+      tone: 'success',
+      action: { label: 'Undo', run: () => this.undoTaskCompletion(id, auditId) },
+    });
     return completedTask;
+  }
+
+  undoTaskCompletion(id: string, completionAuditId: string): boolean {
+    const pending = this.pendingTaskUndos.get(id);
+    const current = this.tasks.find((task) => task.id === id);
+    if (!pending || pending.auditId !== completionAuditId || !current || current.status !== 'Completed') return false;
+    this.pendingTaskUndos.delete(id);
+    this.tasks = this.tasks.map((task) => task.id === id ? pending.task : task);
+    const now = new Date();
+    this.auditLogs = [new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Undid Task Completion', pending.task.title, '127.0.0.1'), ...this.auditLogs];
+    this.notifications = [new NotificationItem(`n${now.getTime()}`, `Task reopened: ${pending.task.title}`, 'Task', true, now.toISOString()), ...this.notifications];
+    this.persist();
+    this.lastError = null;
+    this.notify();
+    this.emitToast({ message: `“${pending.task.title}” reopened`, tone: 'info' });
+    return true;
   }
 
   updateTaskStatus(id: string, status: Task['status']): Task | null {
     const task = this.tasks.find((candidate) => candidate.id === id);
     if (!task) {
       this.lastError = 'Task not found.';
+      this.notify();
+      return null;
+    }
+
+    if ((task.status === 'Completed' || status === 'Completed') && !this.accessService.canCompleteTask(this.user, task)) {
+      this.lastError = 'You do not have permission to complete or reopen this task.';
       this.notify();
       return null;
     }
@@ -580,6 +626,9 @@ export class AppController {
     );
 
     this.tasks = this.tasks.map((candidate) => candidate.id === id ? updatedTask : candidate);
+    const now = new Date();
+    this.auditLogs = [new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, `Changed Task Status: ${task.status} → ${status}`, task.title, '127.0.0.1'), ...this.auditLogs];
+    if (status !== 'Completed') this.pendingTaskUndos.delete(id);
     this.lastError = null;
     this.persist();
     this.notify();
@@ -605,6 +654,8 @@ export class AppController {
     );
 
     this.tasks = this.tasks.map((candidate) => candidate.id === id ? updatedTask : candidate);
+    const now = new Date();
+    this.auditLogs = [new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, `Changed Task Priority: ${task.priority} → ${priority}`, task.title, '127.0.0.1'), ...this.auditLogs];
     this.lastError = null;
     this.persist();
     this.notify();

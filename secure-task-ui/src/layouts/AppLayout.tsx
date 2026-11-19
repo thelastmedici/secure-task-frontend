@@ -33,6 +33,7 @@ type ToastItem = {
   id: number;
   message: string;
   tone: ToastTone;
+  action?: { label: string; run: () => void };
 };
 
 type CommandItem = {
@@ -85,6 +86,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 2800);
   };
+
+  useEffect(() => controller.subscribeToasts((toast) => {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current, { id, ...toast }]);
+    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), toast.action ? 5000 : 2800);
+  }), [controller]);
 
   const visibleNav = navItems.filter((item) => !item.adminOnly || controller.user.isAdmin());
   const workNav = visibleNav.filter((item) => item.route !== 'settings' && !item.adminOnly && item.route !== 'audit-logs' && item.route !== 'users' && item.route !== 'roles');
@@ -427,7 +434,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="toast-stack" aria-live="polite" aria-atomic="true">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast ${toast.tone}`}>
-            {toast.message}
+            <span>{toast.message}</span>
+            {toast.action && <button type="button" className="toast-action" onClick={() => { toast.action?.run(); setToasts((current) => current.filter((item) => item.id !== toast.id)); }}>{toast.action.label}</button>}
           </div>
         ))}
       </div>

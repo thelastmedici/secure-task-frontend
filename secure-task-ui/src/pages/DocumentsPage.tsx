@@ -4,6 +4,8 @@ import { PageHeader } from '../components/PageHeader';
 import type { DocumentItem } from '../types';
 import { useAppController } from '../core/AppContext';
 import { DocumentFileService } from '../services/DocumentFileService';
+import { PermissionButton } from '../components/PermissionButton';
+import { EmptyState } from '../components/EmptyState';
 
 const fileStorage = new DocumentFileService();
 const formatBytes = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -81,7 +83,7 @@ export function DocumentsPage() {
       <PageHeader
         title="Documents"
         description="Securely upload, link, preview, and audit document access."
-        action={<button className="primary-button" disabled={!controller.accessService.canUploadDocument(controller.user)} onClick={() => setShowUpload((value) => !value)}><Upload size={16}/> Upload Document</button>}
+        action={<PermissionButton className="primary-button" allowed={controller.accessService.canUploadDocument(controller.user)} reason="Your role does not allow document uploads." onClick={() => setShowUpload((value) => !value)}><Upload size={16}/> Upload Document</PermissionButton>}
       />
 
       {showUpload && <section className="card upload-card">
@@ -108,14 +110,14 @@ export function DocumentsPage() {
         </div>
       </div>
 
-      {view === 'table' ? <section className="card table-card"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded By</th><th>Date</th><th /></tr></thead><tbody>
+      {filtered.length === 0 && <EmptyState icon={<FileIcon size={23}/>} title={documents.length ? 'No documents match these filters' : 'Your document library is ready'} description={documents.length ? 'Clear the search and file type filter to return to your full library.' : 'Upload a workspace file to give your team one secure place to find it.'} action={documents.length ? <button type="button" onClick={() => { setQuery(''); setFileType('all'); }}>Clear filters</button> : <PermissionButton type="button" className="primary-button" allowed={controller.accessService.canUploadDocument(controller.user)} reason="Your role does not allow document uploads." onClick={() => setShowUpload(true)}><Upload size={15}/> Upload a document</PermissionButton>} />}
+
+      {filtered.length > 0 && view === 'table' ? <section className="card table-card"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded By</th><th>Date</th><th /></tr></thead><tbody>
         {filtered.map((doc) => <tr key={doc.id}><td><span className="document-name-cell"><span className={`file-type-icon type-${doc.type.toLowerCase()}`}><TypeIcon type={doc.type}/></span><span><strong>{doc.fileName}</strong><small>{doc.linkedTask ?? 'No linked task'}</small></span></span></td><td>{doc.type}</td><td>{doc.size}</td><td>{doc.uploadedBy}</td><td>{doc.uploadedAt}</td><td><button onClick={() => openDocument(doc)}>Open</button></td></tr>)}
-        {filtered.length === 0 && <tr><td colSpan={6} className="empty-table">No documents match the current filters.</td></tr>}
-      </tbody></table></section> : <section className="document-grid">
+      </tbody></table></section> : filtered.length > 0 && <section className="document-grid">
         {filtered.map((doc) => <button className="document-card" key={doc.id} onClick={() => openDocument(doc)}>
           <span className={`file-type-icon type-${doc.type.toLowerCase()}`}><TypeIcon type={doc.type}/></span><span className="document-card-copy"><strong>{doc.fileName}</strong><small>{doc.linkedTask ?? 'No linked task'}</small></span><span className="document-card-meta"><span>{doc.size}</span><span>{doc.uploadedBy} · {doc.uploadedAt}</span></span>
         </button>)}
-        {filtered.length === 0 && <div className="card document-empty">No documents match the current filters.</div>}
       </section>}
     </>
   );

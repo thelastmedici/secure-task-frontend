@@ -4,6 +4,8 @@ import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import type { Priority, Task, TaskStatus } from '../types';
 import { useAppController } from '../core/AppContext';
+import { PermissionButton } from '../components/PermissionButton';
+import { EmptyState } from '../components/EmptyState';
 
 const statusOptions: Array<'all' | TaskStatus> = ['all', 'Pending', 'In Progress', 'Completed', 'Overdue'];
 const priorityOptions: Array<'all' | Priority> = ['all', 'Low', 'Medium', 'High'];
@@ -124,7 +126,8 @@ export function TasksPage() {
   };
 
   const updateStatus = (taskId: string, nextStatus: TaskStatus) => {
-    controller.updateTaskStatus(taskId, nextStatus);
+    if (nextStatus === 'Completed') controller.completeTask(taskId);
+    else controller.updateTaskStatus(taskId, nextStatus);
     setStatusEditorId(null);
   };
 
@@ -155,11 +158,10 @@ export function TasksPage() {
           </button>
           {statusEditorId === task.id && (
             <div className="popover-menu">
-              {statusOptions.filter((option) => option !== 'all').map((option) => (
-                <button key={option} type="button" className="menu-option" onClick={() => updateStatus(task.id, option)}>
-                  <StatusBadge status={option} />
-                </button>
-              ))}
+              {statusOptions.filter((option) => option !== 'all').map((option) => {
+                const allowed = option !== 'Completed' || controller.accessService.canCompleteTask(controller.user, task);
+                return <PermissionButton key={option} type="button" className="menu-option" allowed={allowed} reason="Only the assignee, managers, or admins can complete this task." onClick={() => updateStatus(task.id, option)}><StatusBadge status={option}/></PermissionButton>;
+              })}
             </div>
           )}
         </td>
@@ -249,7 +251,7 @@ export function TasksPage() {
       <PageHeader
         title="Tasks"
         description="A central workspace for team execution, reviews, and ownership."
-        action={<button className="primary-button" disabled={!controller.accessService.canCreateTask(controller.user)} onClick={() => setCreating(true)}><Plus size={16} /> Create Task</button>}
+        action={<PermissionButton className="primary-button" allowed={controller.accessService.canCreateTask(controller.user)} reason="Only admins and managers can create tasks." onClick={() => setCreating(true)}><Plus size={16} /> Create Task</PermissionButton>}
       />
 
       <div className="task-toolbar">
@@ -300,13 +302,15 @@ export function TasksPage() {
         <div className="bulk-bar">
           <span>{selectedIds.length} selected</span>
           <div className="bulk-actions">
-            <button type="button" className="primary-button" onClick={bulkComplete}><Check size={14} /> Mark complete</button>
+            <PermissionButton type="button" className="primary-button" allowed={selectedIds.every((id) => { const task = tasks.find((item) => item.id === id); return Boolean(task && controller.accessService.canCompleteTask(controller.user, task)); })} reason="Select only tasks you’re allowed to complete." onClick={bulkComplete}><Check size={14} /> Mark complete</PermissionButton>
             <button type="button" className="ghost-button" onClick={() => setSelectedIds([])}>Clear</button>
           </div>
         </div>
       )}
 
-      {viewMode === 'list' && (
+      {filtered.length === 0 && <EmptyState icon={<Search size={23}/>} title={tasks.length ? 'No tasks match these filters' : 'Your task list is clear'} description={tasks.length ? 'Try a different search or clear the filters to see all workspace tasks.' : 'Create a task to give your team a clear next step.'} action={tasks.length ? <button type="button" onClick={() => { setQuery(''); setSavedView('all'); setStatusFilter('all'); setPriorityFilter('all'); setAssigneeFilter('all'); }}>Clear filters</button> : <PermissionButton type="button" className="primary-button" allowed={controller.accessService.canCreateTask(controller.user)} reason="Only admins and managers can create tasks." onClick={() => setCreating(true)}><Plus size={15}/> Create task</PermissionButton>} />}
+
+      {filtered.length > 0 && viewMode === 'list' && (
         <section className="card table-card">
           <table>
             <thead>
@@ -322,18 +326,13 @@ export function TasksPage() {
             </thead>
             <tbody>
               {filtered.map(renderTaskRow)}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="empty-table">No tasks match the current rules.</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </section>
       )}
 
-      {viewMode === 'board' && renderBoard()}
-      {viewMode === 'calendar' && renderCalendar()}
+      {filtered.length > 0 && viewMode === 'board' && renderBoard()}
+      {filtered.length > 0 && viewMode === 'calendar' && renderCalendar()}
 
       {creating && (
         <div className="dialog-backdrop" onClick={() => setCreating(false)}>
