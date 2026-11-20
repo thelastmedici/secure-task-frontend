@@ -1,3 +1,32 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--ui-background);
+  --color-foreground: var(--ui-foreground);
+  --color-card: var(--ui-card);
+  --color-card-foreground: var(--ui-card-foreground);
+  --color-popover: var(--ui-popover);
+  --color-popover-foreground: var(--ui-popover-foreground);
+  --color-primary: var(--ui-primary);
+  --color-primary-foreground: var(--ui-primary-foreground);
+  --color-secondary: var(--ui-secondary);
+  --color-secondary-foreground: var(--ui-secondary-foreground);
+  --color-muted: var(--ui-muted);
+  --color-muted-foreground: var(--ui-muted-foreground);
+  --color-accent: var(--ui-accent);
+  --color-accent-foreground: var(--ui-accent-foreground);
+  --color-destructive: var(--ui-destructive);
+  --color-destructive-foreground: var(--ui-destructive-foreground);
+  --color-border: var(--ui-border);
+  --color-input: var(--ui-input);
+  --color-ring: var(--ui-ring);
+  --radius-sm: calc(var(--ui-radius) - 4px);
+  --radius-md: calc(var(--ui-radius) - 2px);
+  --radius-lg: var(--ui-radius);
+  --radius-xl: calc(var(--ui-radius) + 4px);
+}
+
+@layer base {
 :root {
   /* Neutral scale (slightly cool, never pure gray) */
   --bg: #fafafb;
@@ -23,6 +52,27 @@
   --shadow-1: 0 1px 2px rgb(16 17 26 / .06);
   --shadow-pop: 0 8px 24px rgb(16 17 26 / .12);
 
+  --ui-background: #fafafb;
+  --ui-foreground: #0e0f13;
+  --ui-card: #ffffff;
+  --ui-card-foreground: #0e0f13;
+  --ui-popover: #ffffff;
+  --ui-popover-foreground: #0e0f13;
+  --ui-primary: #5b5bf0;
+  --ui-primary-foreground: #ffffff;
+  --ui-secondary: #f4f4f6;
+  --ui-secondary-foreground: #0e0f13;
+  --ui-muted: #f4f4f6;
+  --ui-muted-foreground: #6b6f7b;
+  --ui-accent: #eeeeff;
+  --ui-accent-foreground: #29295c;
+  --ui-destructive: #dc2626;
+  --ui-destructive-foreground: #ffffff;
+  --ui-border: #e6e6ea;
+  --ui-input: #e6e6ea;
+  --ui-ring: #5b5bf0;
+  --ui-radius: 0.625rem;
+
   font-family: Inter, "Geist", "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -40,6 +90,25 @@
   --text: #f2f2f5;
   --text-muted: #8c8f9c;
   --accent-soft: #1f1f3d;
+  --ui-background: #0b0c10;
+  --ui-foreground: #f2f2f5;
+  --ui-card: #121318;
+  --ui-card-foreground: #f2f2f5;
+  --ui-popover: #121318;
+  --ui-popover-foreground: #f2f2f5;
+  --ui-primary: #8585ff;
+  --ui-primary-foreground: #101020;
+  --ui-secondary: #1a1b22;
+  --ui-secondary-foreground: #f2f2f5;
+  --ui-muted: #1a1b22;
+  --ui-muted-foreground: #8c8f9c;
+  --ui-accent: #1f1f3d;
+  --ui-accent-foreground: #eeeeff;
+  --ui-destructive: #f87171;
+  --ui-destructive-foreground: #200b0b;
+  --ui-border: #272830;
+  --ui-input: #272830;
+  --ui-ring: #8585ff;
   color-scheme: dark;
 }
 
@@ -1258,4 +1327,5 @@ tr:last-child td { border-bottom: 0; }
 @keyframes skeleton-shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
 }
