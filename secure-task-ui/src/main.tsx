@@ -16,6 +16,13 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import type { Task, DocumentItem } from './types';
 import '/home/asiwaju/Documents/secure-task-frontend/secure-task-ui/src/styles.css';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+  },
+});
 
 function App() {
   const controller = useMemo(() => new AppController(), []);
@@ -91,4 +98,8 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <QueryClientProvider client={queryClient}>
+    <App />
+  </QueryClientProvider>,
+);

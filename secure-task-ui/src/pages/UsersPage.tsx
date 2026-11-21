@@ -1,5 +1,8 @@
 import { Check, CircleUserRound, UserPlus, UsersRound, X } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { flexRender } from '@tanstack/react-table/flex-render';
+import { getCoreRowModel, getFilteredRowModel, getSortedRowModel, useLegacyTable, type LegacyColumnDef } from '@tanstack/react-table/legacy';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { PageHeader } from '../components/PageHeader';
 import { useAppController } from '../core/AppContext';
 import type { Role, User } from '../types';
@@ -37,6 +40,9 @@ export function UsersPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [manageForm, setManageForm] = useState({ name: '', role: 'Member' as Role, status: 'Active' as User['status'] });
   const [userTab, setUserTab] = useState<DetailTab>('overview');
+  const [userSearch, setUserSearch] = useState('');
+  const [sorting, setSorting] = useState<Array<{ id: string; desc: boolean }>>([]);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const selectedUser = controller.users.find((user) => user.id === selectedUserId) ?? null;
   const inviteRules = controller.accessService.permissionsForRole(inviteForm.role);
 
@@ -58,6 +64,60 @@ export function UsersPage() {
     await controller.updateUser(selectedUserId, manageForm);
     if (!controller.lastError) setSelectedUserId(null);
   };
+
+  const userColumns = useMemo<LegacyColumnDef<User>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'User',
+      cell: ({ row }) => {
+        const user = row.original;
+        return <span className="user-name-cell"><span className={`user-avatar avatar-${user.role.toLowerCase()}`}>{initials(user.name)}</span><span><strong>{user.name}</strong><small>{user.id === controller.user.id ? 'You' : user.role}</small></span></span>;
+      },
+    },
+    { accessorKey: 'email', header: 'Email' },
+    {
+      accessorKey: 'role',
+      header: 'Role',
+      cell: ({ getValue }) => <span className={`role-pill role-${String(getValue()).toLowerCase()}`}>{String(getValue())}</span>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => <span className={`status-pill status-${String(getValue()).toLowerCase()}`}><span />{String(getValue())}</span>,
+    },
+    {
+      accessorKey: 'lastActive',
+      header: 'Last active',
+      cell: ({ getValue }) => {
+        const activity = lastActive(getValue<string>());
+        return <span className="last-active-cell" title={activity.exact}>{activity.relative}</span>;
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableSorting: false,
+      cell: ({ row }) => <PermissionButton type="button" allowed={canManageUsers} reason="Only admins can manage users." onClick={() => openManageUser(row.original)}>Manage</PermissionButton>,
+    },
+  ], [canManageUsers, controller.user.id]);
+
+  const userTable = useLegacyTable({
+    data: controller.users,
+    columns: userColumns,
+    state: { globalFilter: userSearch, sorting },
+    onGlobalFilterChange: setUserSearch,
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const virtualRows = useVirtualizer({
+    count: userTable.getRowModel().rows.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 64,
+    overscan: 8,
+  });
 
   return (
     <>
@@ -95,19 +155,22 @@ export function UsersPage() {
         }
       </section>}
 
-      {controller.users.length === 0 ? <EmptyState icon={<UsersRound size={23}/>} title="Your workspace is ready for its team" description="Invite a teammate to assign work and share secure documents." action={<PermissionButton type="button" className="primary-button" allowed={canManageUsers} reason="Only admins can invite users." onClick={() => setIsInviteOpen(true)}><UserPlus size={15}/> Invite a user</PermissionButton>}/> : <section className="card table-card users-table-card"><table>
-        <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Last active</th><th /></tr></thead>
-        <tbody>{controller.users.map((user) => {
-          const activity = lastActive(user.lastActive);
-          return <tr key={user.id}>
-            <td><span className="user-name-cell"><span className={`user-avatar avatar-${user.role.toLowerCase()}`}>{initials(user.name)}</span><span><strong>{user.name}</strong><small>{user.id === controller.user.id ? 'You' : user.role}</small></span></span></td>
-            <td>{user.email}</td><td><span className={`role-pill role-${user.role.toLowerCase()}`}>{user.role}</span></td>
-            <td><span className={`status-pill status-${user.status.toLowerCase()}`}><span/>{user.status}</span></td>
-            <td><span className="last-active-cell" title={activity.exact}>{activity.relative}</span></td>
-            <td><PermissionButton type="button" allowed={canManageUsers} reason="Only admins can manage users." onClick={() => openManageUser(user)}>Manage</PermissionButton></td>
-          </tr>;
-        })}</tbody>
-      </table></section>}
+      {controller.users.length === 0 ? <EmptyState icon={<UsersRound size={23}/>} title="Your workspace is ready for its team" description="Invite a teammate to assign work and share secure documents." action={<PermissionButton type="button" className="primary-button" allowed={canManageUsers} reason="Only admins can invite users." onClick={() => setIsInviteOpen(true)}><UserPlus size={15}/> Invite a user</PermissionButton>}/> : <section className="card table-card users-table-card">
+        <div className="table-search-bar"><input type="text" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Search users..." /></div>
+        <div className="table-scroll-container" ref={tableScrollRef} style={{ height: '420px', overflow: 'auto' }}>
+          <table>
+            <thead><tr>{userTable.getFlatHeaders().map((header) => {
+              const sorted = header.column.getIsSorted();
+              return <th key={header.id} colSpan={header.colSpan} className={header.column.getCanSort() ? 'sortable-header' : undefined} onClick={header.column.getToggleSortingHandler()}>{header.isPlaceholder ? null : <>{flexRender(header.column.columnDef.header, header.getContext())}{sorted ? (sorted === 'asc' ? ' ↑' : ' ↓') : ''}</>}</th>;
+            })}</tr></thead>
+            <tbody style={{ height: `${virtualRows.getTotalSize()}px`, position: 'relative', display: 'block' }}>{virtualRows.getVirtualItems().map((virtualRow) => {
+              const row = userTable.getRowModel().rows[virtualRow.index];
+              return <tr key={row.id} style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, position: 'absolute', left: 0, width: '100%' }}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>;
+            })}</tbody>
+          </table>
+        </div>
+        <div className="table-footer">{userTable.getRowModel().rows.length} user{userTable.getRowModel().rows.length !== 1 ? 's' : ''} found.</div>
+      </section>}
     </>
   );
 }

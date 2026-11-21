@@ -1140,7 +1140,7 @@ tr:last-child td { border-bottom: 0; }
 .user-avatar.large { width: 42px; height: 42px; }
 .avatar-admin, .role-admin { --role-color: #7c3aed; --role-soft: color-mix(in srgb, #7c3aed 12%, var(--surface)); }
 .avatar-manager, .role-manager { --role-color: #2563eb; --role-soft: color-mix(in srgb, #3b82f6 12%, var(--surface)); }
-.avatar-member, .role-member { --role-color: #07845b; --role-soft: color-mix(in srgb, #10b981 12%, var(--surface)); }
+.avatar-member, .role-member { --role-color: #07845e; --role-soft: color-mix(in srgb, #07845e 12%, var(--surface)); }
 .avatar-admin, .avatar-manager, .avatar-member, .role-admin, .role-manager, .role-member { background: var(--role-soft); color: var(--role-color); }
 .role-pill { display: inline-flex; align-items: center; width: fit-content; padding: 4px 8px; border-radius: 999px; background: var(--role-soft, var(--surface-2)); color: var(--role-color, var(--text-muted)); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .preview-list-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }

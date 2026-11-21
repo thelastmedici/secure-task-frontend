@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { Bell, Check, Download, KeyRound, LockKeyhole, Monitor, Shield, UserRound, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../components/PageHeader';
 import { ThemeToggle, useThemePreference } from '../components/ThemeToggle';
 import { useAppController } from '../core/AppContext';
@@ -23,6 +24,7 @@ function browserName(agent: string) {
 
 export function SettingsPage() {
   const controller = useAppController();
+  const queryClient = useQueryClient();
   // Open on Security so the requested MFA and session controls are immediately visible.
   const [section, setSection] = useState<SettingsSection>('Security');
   const [name, setName] = useState(controller.user.name);
@@ -37,8 +39,17 @@ export function SettingsPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [sessions, setSessions] = useState<ActiveSession[]>(controller.activeSessions);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const sessionsQuery = useQuery({
+    queryKey: ['active-sessions'],
+    queryFn: () => controller.loadActiveSessions(),
+    enabled: section === 'Security',
+  });
+  const sessions = sessionsQuery.data ?? [];
+  const sessionsLoading = sessionsQuery.isFetching;
+  const revokeSessionsMutation = useMutation({
+    mutationFn: () => controller.revokeAllSessions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['active-sessions'] }),
+  });
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => controller.storageService.load('notificationPreferences', defaultNotifications));
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [, setRefresh] = useState(0);
@@ -54,14 +65,6 @@ export function SettingsPage() {
     QRCode.toDataURL(totpUri(setupSecret, controller.user.email), { width: 220, margin: 2, errorCorrectionLevel: 'M' })
       .then(setQrCode).catch(() => setMessage('Could not generate the authenticator QR code.'));
   }, [controller.user.email, setupSecret]);
-
-  useEffect(() => {
-    if (section !== 'Security') return;
-    let active = true;
-    setSessionsLoading(true);
-    controller.loadActiveSessions().then((result) => { if (active) { setSessions(result); setSessionsLoading(false); } });
-    return () => { active = false; };
-  }, [controller, section]);
 
   const saveProfile = () => { if (controller.updateProfile(name, email)) setMessage('Profile saved.'); };
   const saveWorkspaceSettings = () => {
@@ -95,8 +98,9 @@ export function SettingsPage() {
     const next = { ...notificationPreferences, [key]: checked };
     setNotificationPreferences(next); controller.storageService.save('notificationPreferences', next); setMessage('Notification preferences saved.');
   };
-  const signOutEverywhere = async () => {
-    setConfirmSignOut(false); await controller.revokeAllSessions();
+  const signOutEverywhere = () => {
+    setConfirmSignOut(false);
+    revokeSessionsMutation.mutate();
   };
 
   const navItems: Array<{ title: SettingsSection; icon: typeof UserRound; description: string }> = [
