@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, it, expect } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { AppController } from './AppController';
 import { User } from '../domain/models';
 import { StorageService } from '../services/StorageService';
@@ -13,51 +14,62 @@ describe('AppController navigation and auth gating', () => {
   });
   it('redirects non-admin from audit-logs to dashboard', () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     c.user = User.fromSeed({ id: 'uX', name: 'Member', email: 'm@example.com', role: 'Member', status: 'Active' });
     c.navigate('audit-logs');
-    expect(c.route).toBe('dashboard');
+    expect(locations).toEqual(['/']);
     expect(c.lastError).toContain('not permitted');
   });
 
   it('allows admin to access audit-logs', () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     c.user = User.fromSeed({ id: 'u1', name: 'Admin', email: 'a@example.com', role: 'Admin', status: 'Active' });
     c.navigate('audit-logs');
-    expect(c.route).toBe('audit-logs');
+    expect(locations).toEqual(['/audit-logs']);
     expect(c.lastError).toBeNull();
   });
 
   it('notifies subscribers on navigation changes', () => {
     const c = new AppController();
-    const events: string[] = [];
-    const unsub = c.subscribe((ctl) => events.push(ctl.route));
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
+    const events: number[] = [];
+    const unsub = c.subscribe(() => events.push(1));
     c.navigate('tasks');
     c.navigate('documents');
     unsub();
     c.navigate('dashboard');
-    expect(events).toEqual(['tasks', 'documents']);
+    expect(locations).toEqual(['/tasks', '/documents', '/']);
+    expect(events).toEqual([1, 1]);
   });
 
   it('login succeeds with correct credentials and persists token', async () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     const ok = await c.login('joshua@example.com', 'password');
     expect(ok).toBe(true);
     const storage = new StorageService();
     const raw = storage.load<string | null>('sessionToken', null);
     expect(raw).toBeTruthy();
-    expect(c.route).toBe('dashboard');
+    expect(locations).toEqual(['/']);
   });
 
   it('login fails with wrong credentials and sets error', async () => {
     const c = new AppController();
     const ok = await c.login('noone@example.com', 'bad');
     expect(ok).toBe(false);
-    expect(c.route).not.toBe('dashboard');
+    expect(c.isAuthenticated).toBe(false);
     expect(c.lastError).toBe('Invalid credentials');
   });
 
   it('creates a task for authorized users and records notifications/audit entries', () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     c.user = User.fromSeed({ id: 'u2', name: 'Sarah Connor', email: 'sarah@example.com', role: 'Manager', status: 'Active' });
     const created = c.createTask({ title: 'Security review', description: 'Assess the new workflow' });
 
@@ -65,7 +77,7 @@ describe('AppController navigation and auth gating', () => {
     expect(c.tasks[0].id).toBe(created.id);
     expect(c.notifications[0].message).toContain('Security review');
     expect(c.auditLogs[0].action).toBe('Created Task');
-    expect(c.route).toBe('task-detail');
+    expect(locations).toEqual([`/tasks/${created.id}`]);
   });
 
   it('rejects task creation for members and keeps route stable', () => {
@@ -109,15 +121,18 @@ describe('AppController navigation and auth gating', () => {
 
     render(
       React.createElement(
-        AppProvider,
-        { controller: c },
-        React.createElement(TaskDetailPage),
+        MemoryRouter,
+        { initialEntries: [`/tasks/${task.id}`] },
+        React.createElement(
+          AppProvider,
+          { controller: c },
+          React.createElement(TaskDetailPage),
+        ),
       ),
     );
 
     fireEvent.click(screen.getByRole('button', { name: new RegExp(linkedDocument.fileName, 'i') }));
 
-    expect(c.route).toBe('document-detail');
     expect(c.selectedDocumentId).toBe(linkedDocument.id);
   });
 
@@ -133,12 +148,14 @@ describe('AppController navigation and auth gating', () => {
 
   it('deletes an authorized document and preserves an audit record', () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     const document = c.documents[0];
 
     expect(c.deleteDocument(document.id)).toBe(true);
     expect(c.documents.some((candidate) => candidate.id === document.id)).toBe(false);
     expect(c.auditLogs[0].action).toBe('Deleted Document');
-    expect(c.route).toBe('documents');
+    expect(locations).toEqual(['/documents']);
   });
 
   it("does not let a member delete another user's document", () => {
@@ -209,9 +226,11 @@ describe('AppController navigation and auth gating', () => {
 
   it('logout clears the persisted session and resets route to login', async () => {
     const c = new AppController();
+    const locations: string[] = [];
+    c.setRouterNavigator((to) => locations.push(to));
     await c.login('joshua@example.com', 'password');
     c.logout();
-    expect(c.route).toBe('login');
+    expect(locations.at(-1)).toBe('/login');
     const storage = new StorageService();
     expect(storage.load<string | null>('sessionToken', null)).toBeNull();
   });

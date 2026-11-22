@@ -19,6 +19,8 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAppController } from '../core/AppContext';
 import type { RouteName } from '../types';
+import { useLocation } from 'react-router-dom';
+import { routeNameFromPath } from '../routing';
 
 type NavigationItem = {
   route: RouteName;
@@ -72,7 +74,8 @@ const routeLabels: Record<RouteName, string> = {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const controller = useAppController();
-  const route = controller.route;
+  const { pathname } = useLocation();
+  const route = routeNameFromPath(pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');

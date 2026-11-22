@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppController } from './core/AppController';
-import { AppProvider } from './core/AppContext';
+import { AppProvider, useAppController } from './core/AppContext';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './pages/DashboardPage';
 import { TasksPage } from './pages/TasksPage';
@@ -14,9 +16,8 @@ import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
-import type { Task, DocumentItem } from './types';
-import '/home/asiwaju/Documents/secure-task-frontend/secure-task-ui/src/styles.css';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { RouteName } from './types';
+import './styles.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,77 +25,78 @@ const queryClient = new QueryClient({
   },
 });
 
+function RouterBridge() {
+  const controller = useAppController();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    controller.setRouterNavigator((to, options) => navigate(to, options));
+  }, [controller, navigate]);
+
+  return null;
+}
+
+function ProtectedRoute({ route, children }: { route: RouteName; children: ReactNode }) {
+  const controller = useAppController();
+  const location = useLocation();
+
+  if (!controller.isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!controller.accessService.canAccessRoute(route, controller.user)) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function PublicOnly({ children }: { children: ReactNode }) {
+  const controller = useAppController();
+  return controller.isAuthenticated ? <Navigate to="/" replace /> : <>{children}</>;
+}
+
+function WorkspaceLayout() {
+  return <AppLayout><Outlet /></AppLayout>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+      <Route element={<ProtectedRoute route="dashboard"><WorkspaceLayout /></ProtectedRoute>}>
+        <Route index element={<DashboardPage />} />
+        <Route path="tasks" element={<ProtectedRoute route="tasks"><TasksPage /></ProtectedRoute>} />
+        <Route path="tasks/:taskId" element={<ProtectedRoute route="task-detail"><TaskDetailPage /></ProtectedRoute>} />
+        <Route path="documents" element={<ProtectedRoute route="documents"><DocumentsPage /></ProtectedRoute>} />
+        <Route path="documents/:documentId" element={<ProtectedRoute route="document-detail"><DocumentDetailPage /></ProtectedRoute>} />
+        <Route path="notifications" element={<ProtectedRoute route="notifications"><NotificationsPage /></ProtectedRoute>} />
+        <Route path="audit-logs" element={<ProtectedRoute route="audit-logs"><AuditLogsPage /></ProtectedRoute>} />
+        <Route path="users" element={<ProtectedRoute route="users"><UsersPage /></ProtectedRoute>} />
+        <Route path="roles" element={<ProtectedRoute route="roles"><RolesPage /></ProtectedRoute>} />
+        <Route path="settings" element={<ProtectedRoute route="settings"><SettingsPage /></ProtectedRoute>} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function App() {
   const controller = useMemo(() => new AppController(), []);
-  const [route, setRoute] = useState(controller.route);
-  const [tasks, setTasks] = useState<Task[]>(controller.tasks);
-  const [documents, setDocuments] = useState<DocumentItem[]>(controller.documents);
-  const [notifications, setNotifications] = useState(controller.notifications);
+  const [, setRevision] = useState(0);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const root = document.documentElement;
     const storedTheme = localStorage.getItem('theme');
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : systemTheme;
-
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
   }, []);
 
-  const selectedTask = useMemo(() => tasks.find((task) => task.id === controller.selectedTaskId) ?? tasks[0], [tasks, controller.selectedTaskId]);
-  const selectedDocument = useMemo(() => documents.find((doc) => doc.id === controller.selectedDocumentId) ?? documents[0], [documents, controller.selectedDocumentId]);
-
-  const handleCreateTask = (payload?: Partial<Task>) => {
-    controller.createTask(payload);
-  };
-
-  const handleUploadDocument = (payload?: Partial<DocumentItem>) => {
-    controller.uploadDocument(payload);
-  };
-
-  const handleMarkAllRead = () => {
-    controller.markAllNotificationsRead();
-  };
-
-  const syncState = () => {
-    setTasks(controller.tasks);
-    setDocuments(controller.documents);
-    setNotifications(controller.notifications);
-    setRoute(controller.route);
-  };
-
-  React.useEffect(() => {
-    const unsub = controller.subscribe(() => syncState());
-    return unsub;
-  }, [controller]);
-
-  const onNavigate = (nextRoute: typeof route) => {
-    controller.navigate(nextRoute);
-  };
-
-  if (route === 'login') {
-    return (
-      <AppProvider controller={controller}>
-        <LoginPage />
-      </AppProvider>
-    );
-  }
+  useEffect(() => controller.subscribe(() => setRevision((revision) => revision + 1)), [controller]);
 
   return (
-    <AppProvider controller={controller}>
-      <AppLayout>
-        {route === 'dashboard' && <DashboardPage />}
-        {route === 'tasks' && <TasksPage />}
-        {route === 'task-detail' && <TaskDetailPage />}
-        {route === 'documents' && <DocumentsPage />}
-        {route === 'document-detail' && <DocumentDetailPage />}
-        {route === 'notifications' && <NotificationsPage />}
-        {route === 'audit-logs' && <AuditLogsPage />}
-        {route === 'users' && <UsersPage />}
-        {route === 'roles' && <RolesPage />}
-        {route === 'settings' && <SettingsPage />}
-      </AppLayout>
-    </AppProvider>
+    <BrowserRouter>
+      <AppProvider controller={controller}>
+        <RouterBridge />
+        <AppRoutes />
+      </AppProvider>
+    </BrowserRouter>
   );
 }
 

@@ -13,6 +13,7 @@ import { ApiClient, ApiError } from '../services/ApiClient';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
 import { generateRecoveryCodes, generateTotpSecret, matchingTotpCounter } from '../services/TotpService';
+import { routePaths } from '../routing';
 
 type SecretCredential = {
   salt: string;
@@ -45,7 +46,6 @@ export class AppController {
   user: User;
   lastError: string | null = null;
   lastSuccess: string | null = null;
-  route: RouteName = 'login';
   tasks: Task[];
   documents: DocumentItem[];
   notifications: NotificationItem[];
@@ -76,7 +76,6 @@ export class AppController {
       const sessionUser = this.users.find((candidate) => candidate.id === storedUserId);
       if (sessionUser) {
         this.user = sessionUser;
-        this.route = 'dashboard';
         const localSession = this.storageService.load<ActiveSession | null>('sessionInfo', null);
         this.activeSessions = localSession ? [localSession] : [];
       }
@@ -89,6 +88,7 @@ export class AppController {
   private subscribers: Array<(c: AppController) => void> = [];
   private toastSubscribers: Array<(toast: AppToast) => void> = [];
   private pendingTaskUndos = new Map<string, { task: Task; auditId: string }>();
+  private routerNavigate: ((to: string, options?: { replace?: boolean }) => void) | null = null;
 
   subscribe(fn: (c: AppController) => void) {
     this.subscribers.push(fn);
@@ -100,6 +100,14 @@ export class AppController {
   subscribeToasts(fn: (toast: AppToast) => void) {
     this.toastSubscribers.push(fn);
     return () => { this.toastSubscribers = this.toastSubscribers.filter((listener) => listener !== fn); };
+  }
+
+  setRouterNavigator(navigate: (to: string, options?: { replace?: boolean }) => void): void {
+    this.routerNavigate = navigate;
+  }
+
+  get isAuthenticated(): boolean {
+    return Boolean(this.storageService.load<string | null>('sessionToken', null) && this.storageService.load<string | null>('sessionUserId', null));
   }
 
   private emitToast(toast: AppToast) {
@@ -154,8 +162,8 @@ export class AppController {
   navigate(route: RouteName): void {
     if (route === 'login') {
       this.lastError = null;
-      this.route = 'login';
       this.notify();
+      this.routerNavigate?.(routePaths.login, { replace: true });
       return;
     }
 
@@ -163,14 +171,14 @@ export class AppController {
     if (denied) {
       const reason = this.accessService.deniedReason(route, this.user) ?? 'Access denied';
       this.lastError = reason;
-      this.route = 'dashboard';
       this.notify();
+      this.routerNavigate?.(routePaths.dashboard, { replace: true });
       return;
     }
 
     this.lastError = null;
-    this.route = route;
     this.notify();
+    this.routerNavigate?.(routePaths[route]);
   }
 
   clearError() {
@@ -491,14 +499,14 @@ export class AppController {
 
   openTask(id: string): void {
     this.selectedTaskId = id;
-    this.route = 'task-detail';
     this.notify();
+    this.routerNavigate?.(`/tasks/${encodeURIComponent(id)}`);
   }
 
   openDocument(id: string): void {
     this.selectedDocumentId = id;
-    this.route = 'document-detail';
     this.notify();
+    this.routerNavigate?.(`/documents/${encodeURIComponent(id)}`);
   }
 
   createTask(input: Partial<Task> = {}): Task {
@@ -521,7 +529,6 @@ export class AppController {
 
     this.tasks = [task, ...this.tasks];
     this.selectedTaskId = task.id;
-    this.route = 'task-detail';
     this.auditLogs = [
       new AuditLog(`a${now.getTime()}`, now.toISOString(), this.user.name, 'Created Task', task.title, '127.0.0.1'),
       ...this.auditLogs,
@@ -531,6 +538,7 @@ export class AppController {
     this.notifications = [notif, ...this.notifications];
     this.persist();
     this.notify();
+    this.routerNavigate?.(`/tasks/${encodeURIComponent(task.id)}`);
     return task;
   }
 
@@ -702,7 +710,6 @@ export class AppController {
 
     this.documents = [document, ...this.documents];
     this.selectedDocumentId = document.id;
-    this.route = 'document-detail';
     this.auditLogs = [
       new AuditLog(`a${now.getTime() + 1}`, now.toISOString(), this.user.name, 'Uploaded Document', document.fileName, '127.0.0.1'),
       ...this.auditLogs,
@@ -712,6 +719,7 @@ export class AppController {
     this.notifications = [notif, ...this.notifications];
     this.persist();
     this.notify();
+    this.routerNavigate?.(`/documents/${encodeURIComponent(document.id)}`);
     return document;
   }
 
@@ -761,10 +769,10 @@ export class AppController {
       new NotificationItem(`n${now.getTime()}`, `Document deleted: ${document.fileName}`, 'Document', true, now.toISOString()),
       ...this.notifications,
     ];
-    this.route = 'documents';
     this.lastError = null;
     this.persist();
     this.notify();
+    this.routerNavigate?.(routePaths.documents, { replace: true });
     return true;
   }
 
@@ -808,7 +816,6 @@ export class AppController {
       const session: ActiveSession = { id: token, device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'This browser', createdAt: now, lastActive: now, isCurrent: true };
       this.activeSessions = [session];
       this.storageService.save('sessionInfo', session);
-      this.route = 'dashboard';
       this.lastError = null;
       this.auditLogs = [
         new AuditLog(`a${Date.now()}`, new Date().toISOString(), this.user.name, 'Logged In', 'Session', '127.0.0.1'),
@@ -816,6 +823,7 @@ export class AppController {
       ];
       this.persist();
       this.notify();
+      this.routerNavigate?.(routePaths.dashboard, { replace: true });
       return true;
     } catch {
       this.lastError = 'Login error';
@@ -829,10 +837,10 @@ export class AppController {
     this.storageService.save('sessionUserId', null as any);
     this.storageService.remove('sessionInfo');
     this.activeSessions = [];
-    this.route = 'login';
     this.lastError = null;
     this.user = User.fromSeed(currentUser);
     this.notify();
+    this.routerNavigate?.(routePaths.login, { replace: true });
   }
 
   persist(): void {

@@ -1,11 +1,14 @@
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, FileCheck2, LockKeyhole, ShieldCheck, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppController } from '../core/AppContext';
 
 type LoginStep = 'credentials' | 'two-factor' | 'reset-password';
 
 export function LoginPage() {
   const controller = useAppController();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -20,6 +23,10 @@ export function LoginPage() {
     if (isSubmitting) return;
     setIsSubmitting(true); setNotice(null);
     const didLogin = await controller.login(email.trim(), password);
+    if (didLogin) {
+      navigate((location.state as { from?: string } | null)?.from ?? '/', { replace: true });
+      return;
+    }
     if (!didLogin && controller.lastError === 'Enter a valid authenticator or recovery code.') {
       controller.clearError(); setVerificationCode(''); setStep('two-factor');
     }
@@ -30,7 +37,8 @@ export function LoginPage() {
     event.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
-    await controller.login(email.trim(), password, verificationCode);
+    const didLogin = await controller.login(email.trim(), password, verificationCode);
+    if (didLogin) navigate((location.state as { from?: string } | null)?.from ?? '/', { replace: true });
     setIsSubmitting(false);
   };
 

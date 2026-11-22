@@ -6,10 +6,12 @@ import { PermissionButton } from '../components/PermissionButton';
 import { DetailTabs, type DetailTab } from '../components/DetailTabs';
 import { HistoryPanel } from '../components/HistoryPanel';
 import { useAppController } from '../core/AppContext';
+import { useParams } from 'react-router-dom';
 
 export function TaskDetailPage() {
   const controller = useAppController();
-  const task = controller.selectedTask;
+  const { taskId } = useParams();
+  const task = controller.tasks.find((candidate) => candidate.id === taskId) ?? controller.selectedTask;
   const documents = controller.documents;
   const linkedDocuments = documents.filter((doc) => doc.linkedTask === task.title);
   const isCompleted = task.status === 'Completed';

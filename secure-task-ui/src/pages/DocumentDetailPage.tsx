@@ -5,6 +5,7 @@ import { DetailTabs, type DetailTab } from '../components/DetailTabs';
 import { HistoryPanel } from '../components/HistoryPanel';
 import { PermissionButton } from '../components/PermissionButton';
 import { useAppController } from '../core/AppContext';
+import { useParams } from 'react-router-dom';
 import { DocumentFileService } from '../services/DocumentFileService';
 
 const fileStorage = new DocumentFileService();
@@ -12,7 +13,8 @@ const isImage = (type: string) => ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes
 
 export function DocumentDetailPage() {
   const controller = useAppController();
-  const selectedDocument = controller.selectedDocument;
+  const { documentId } = useParams();
+  const selectedDocument = controller.documents.find((candidate) => candidate.id === documentId) ?? controller.selectedDocument;
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
