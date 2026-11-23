@@ -9,5 +9,8 @@
     "build": "npm --workspace secure-task-ui run build",
     "preview": "npm --workspace secure-task-ui run preview",
     "test": "npm --workspace secure-task-ui run test"
+  },
+  "dependencies": {
+    "zustand": "^5.1.0"
   }
 }

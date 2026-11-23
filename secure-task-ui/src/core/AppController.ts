@@ -32,6 +32,11 @@ export interface AppToast {
   action?: { label: string; run: () => void };
 }
 
+export type AppControllerEvents = {
+  onChange?: () => void;
+  onToast?: (toast: AppToast) => void;
+};
+
 const defaultWorkspaceSettings: WorkspaceSettings = {
   maxUploadSizeMb: 25,
   allowedFileTypes: ['PDF', 'DOCX', 'XLSX', 'PNG'],
@@ -58,7 +63,7 @@ export class AppController {
   private passwordCredentials: Record<string, SecretCredential>;
   private twoFactorCredentials: Record<string, TwoFactorCredential>;
 
-  constructor() {
+  constructor(private readonly events: AppControllerEvents = {}) {
     this.user = User.fromSeed(currentUser);
     this.tasks = this.storageService.load('tasks', seedTasks.map(Task.fromSeed));
     this.documents = this.storageService.load('documents', seedDocuments.map(DocumentItem.fromSeed));
@@ -85,22 +90,8 @@ export class AppController {
     this.selectedDocumentId = this.documents[0]?.id ?? 'd1';
   }
 
-  private subscribers: Array<(c: AppController) => void> = [];
-  private toastSubscribers: Array<(toast: AppToast) => void> = [];
   private pendingTaskUndos = new Map<string, { task: Task; auditId: string }>();
   private routerNavigate: ((to: string, options?: { replace?: boolean }) => void) | null = null;
-
-  subscribe(fn: (c: AppController) => void) {
-    this.subscribers.push(fn);
-    return () => {
-      this.subscribers = this.subscribers.filter((s) => s !== fn);
-    };
-  }
-
-  subscribeToasts(fn: (toast: AppToast) => void) {
-    this.toastSubscribers.push(fn);
-    return () => { this.toastSubscribers = this.toastSubscribers.filter((listener) => listener !== fn); };
-  }
 
   setRouterNavigator(navigate: (to: string, options?: { replace?: boolean }) => void): void {
     this.routerNavigate = navigate;
@@ -111,17 +102,11 @@ export class AppController {
   }
 
   private emitToast(toast: AppToast) {
-    this.toastSubscribers.forEach((listener) => listener(toast));
+    this.events.onToast?.(toast);
   }
 
-  private notify() {
-    this.subscribers.forEach((s) => {
-      try {
-        s(this);
-      } catch {
-        // swallow listener errors to keep controller resilient
-      }
-    });
+  private commit() {
+    this.events.onChange?.();
   }
 
   get selectedTask() {
