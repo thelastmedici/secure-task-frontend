@@ -1,18 +1,31 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createStore, useStore, type StoreApi } from 'zustand';
 import { AppController } from './AppController';
 
-const AppContext = createContext<AppController | null>(null);
+type AppStoreState = {
+  controller: AppController;
+  revision: number;
+};
+
+const AppStoreContext = createContext<StoreApi<AppStoreState> | null>(null);
 
 export function AppProvider({ children, controller }: { children: ReactNode; controller: AppController }) {
-  return <AppContext.Provider value={controller}>{children}</AppContext.Provider>;
+  const store = useMemo(() => createStore<AppStoreState>(() => ({ controller, revision: 0 })), [controller]);
+
+  useEffect(() => controller.subscribe(() => {
+    store.setState((state) => ({ revision: state.revision + 1 }));
+  }), [controller, store]);
+
+  return <AppStoreContext.Provider value={store}>{children}</AppStoreContext.Provider>;
 }
 
 export function useAppController() {
-  const context = useContext(AppContext);
+  const store = useContext(AppStoreContext);
 
-  if (!context) {
+  if (!store) {
     throw new Error('useAppController must be used within an AppProvider');
   }
 
-  return context;
+  useStore(store, (state) => state.revision);
+  return useStore(store, (state) => state.controller);
 }

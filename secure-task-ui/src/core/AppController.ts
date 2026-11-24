@@ -62,6 +62,8 @@ export class AppController {
   selectedDocumentId: string;
   private passwordCredentials: Record<string, SecretCredential>;
   private twoFactorCredentials: Record<string, TwoFactorCredential>;
+  private readonly listeners = new Set<() => void>();
+  private readonly toastListeners = new Set<(toast: AppToast) => void>();
 
   constructor(private readonly events: AppControllerEvents = {}) {
     this.user = User.fromSeed(currentUser);
@@ -103,10 +105,26 @@ export class AppController {
 
   private emitToast(toast: AppToast) {
     this.events.onToast?.(toast);
+    this.toastListeners.forEach((listener) => listener(toast));
   }
 
   private commit() {
+    this.notify();
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  subscribeToasts(listener: (toast: AppToast) => void): () => void {
+    this.toastListeners.add(listener);
+    return () => this.toastListeners.delete(listener);
+  }
+
+  private notify(): void {
     this.events.onChange?.();
+    this.listeners.forEach((listener) => listener());
   }
 
   get selectedTask() {

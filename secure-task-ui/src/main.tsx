@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -77,7 +77,6 @@ function AppRoutes() {
 
 function App() {
   const controller = useMemo(() => new AppController(), []);
-  const [, setRevision] = useState(0);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -87,8 +86,6 @@ function App() {
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
   }, []);
-
-  useEffect(() => controller.subscribe(() => setRevision((revision) => revision + 1)), [controller]);
 
   return (
     <BrowserRouter>
