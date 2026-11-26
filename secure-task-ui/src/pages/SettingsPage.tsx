@@ -77,16 +77,16 @@ export function SettingsPage() {
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setIsPasswordFormOpen(false); setMessage('Password changed.');
     }
   };
-  const beginSetup = () => {
-    setMessage(null); setRecoveryCodes([]); setSetupSecret(controller.beginTwoFactorSetup()); setVerificationCode('');
+  const beginSetup = async () => {
+    setMessage(null); setRecoveryCodes([]); const secret = await controller.beginTwoFactorSetup(); setSetupSecret(secret); setVerificationCode('');
   };
   const confirmSetup = async () => {
     if (!setupSecret) return;
     const codes = await controller.confirmTwoFactorSetup(setupSecret, verificationCode);
     if (codes) { setRecoveryCodes(codes); setSetupSecret(null); setMessage('Authenticator app verified. Two-factor authentication is enabled.'); setRefresh((v) => v + 1); }
   };
-  const disableTwoFactor = () => {
-    controller.disableTwoFactor(); setRecoveryCodes([]); setSetupSecret(null); setMessage('Two-factor authentication disabled.'); setRefresh((v) => v + 1);
+  const disableTwoFactor = async () => {
+    await controller.disableTwoFactor(); setRecoveryCodes([]); setSetupSecret(null); setMessage('Two-factor authentication disabled.'); setRefresh((v) => v + 1);
   };
   const downloadRecoveryCodes = () => {
     const content = ['SecureFlow recovery codes', 'Store these codes somewhere safe. Each code can be used once.', '', ...recoveryCodes].join('\n');
@@ -124,7 +124,7 @@ export function SettingsPage() {
             <section className="card settings-panel"><div><h2>Password</h2><p className="muted-text">Use a strong password you don’t use elsewhere.</p></div>{!isPasswordFormOpen ? <button type="button" className="wide-button" onClick={() => setIsPasswordFormOpen(true)}><KeyRound size={16}/> Change password</button> : <div className="settings-form"><label>Current password<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><label>Confirm new password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label><p className="muted-text">Use 12 or more characters, including uppercase, lowercase, and a number.</p><div className="dialog-actions"><button type="button" onClick={() => setIsPasswordFormOpen(false)}>Cancel</button><button type="button" className="primary-button" onClick={() => void changePassword()}>Update password</button></div></div>}</section>
 
             <section className="card settings-panel"><div className="security-heading"><span className="security-icon"><Shield size={19}/></span><span><h2>Authenticator app</h2><p className="muted-text">Use time-based one-time passwords (TOTP) from an authenticator app.</p></span><span className={`security-state ${controller.hasTwoFactorEnabled() ? 'enabled' : ''}`}><span/>{controller.hasTwoFactorEnabled() ? 'Enabled' : 'Not enabled'}</span></div>
-              <p className="security-demo-note">This frontend demo stores the TOTP secret in this browser. Production deployments should store and verify MFA secrets on the authentication server.</p>
+              <p className="security-demo-note">Authenticator secrets and recovery codes are created and verified by the authentication server.</p>
               {!controller.hasTwoFactorEnabled() && !setupSecret && <button type="button" className="primary-button" onClick={beginSetup}>Set up authenticator</button>}
               {setupSecret && <div className="totp-setup"><div className="totp-steps"><strong>1. Scan this QR code</strong><span>Open your authenticator app and scan the code. Or enter the setup key manually.</span>{qrCode ? <img className="totp-qr" src={qrCode} alt="Authenticator setup QR code"/> : <div className="totp-qr-loading">Preparing QR code…</div>}<code className="totp-secret">{setupSecret.match(/.{1,4}/g)?.join(' ')}</code></div><div className="totp-verify"><strong>2. Verify setup</strong><span>Enter the current 6-digit code from your authenticator app.</span><label>Authenticator code<input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, ''))}/></label><button type="button" className="primary-button" disabled={verificationCode.length !== 6} onClick={() => void confirmSetup()}><Check size={15}/> Verify and enable</button><button type="button" onClick={() => setSetupSecret(null)}>Cancel setup</button></div></div>}
               {controller.hasTwoFactorEnabled() && !recoveryCodes.length && <button type="button" className="danger-outline-button" onClick={disableTwoFactor}>Disable two-factor authentication</button>}

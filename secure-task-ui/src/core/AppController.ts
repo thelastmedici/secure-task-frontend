@@ -12,19 +12,7 @@ import { AccessService } from '../services/AccessService';
 import { ApiClient, ApiError } from '../services/ApiClient';
 import { AuditService } from '../services/AuditService';
 import { StorageService } from '../services/StorageService';
-import { generateRecoveryCodes, generateTotpSecret, matchingTotpCounter } from '../services/TotpService';
 import { routePaths } from '../routing';
-
-type SecretCredential = {
-  salt: string;
-  hash: string;
-};
-
-type TwoFactorCredential = {
-  secret: string;
-  recoveryCodes: SecretCredential[];
-  lastUsedTotpStep?: number;
-};
 
 export interface AppToast {
   message: string;
@@ -60,12 +48,15 @@ export class AppController {
   activeSessions: ActiveSession[] = [];
   selectedTaskId: string;
   selectedDocumentId: string;
-  private passwordCredentials: Record<string, SecretCredential>;
-  private twoFactorCredentials: Record<string, TwoFactorCredential>;
+  private authenticated = false;
+  private accessToken: string | null = null;
+  private twoFactorEnabled = false;
+  private readonly twoFactorEnabledByUser = new Set<string>();
   private readonly listeners = new Set<() => void>();
   private readonly toastListeners = new Set<(toast: AppToast) => void>();
 
   constructor(private readonly events: AppControllerEvents = {}) {
+    this.storageService.removeAuthState();
     this.user = User.fromSeed(currentUser);
     this.tasks = this.storageService.load('tasks', seedTasks.map(Task.fromSeed));
     this.documents = this.storageService.load('documents', seedDocuments.map(DocumentItem.fromSeed));
@@ -74,22 +65,11 @@ export class AppController {
     this.users = storedUsers.map(User.fromSeed);
     this.auditLogs = this.storageService.load('auditLogs', seedAuditLogs.map(AuditLog.fromSeed));
     this.workspaceSettings = this.storageService.load('workspaceSettings', defaultWorkspaceSettings);
-    this.passwordCredentials = this.storageService.load('passwordCredentials', {});
-    this.twoFactorCredentials = this.storageService.load('twoFactorSettings', {});
-
-    const storedUserId = this.storageService.load<string | null>('sessionUserId', null);
-    const storedToken = this.storageService.load<string | null>('sessionToken', null);
-    if (storedToken && storedUserId) {
-      const sessionUser = this.users.find((candidate) => candidate.id === storedUserId);
-      if (sessionUser) {
-        this.user = sessionUser;
-        const localSession = this.storageService.load<ActiveSession | null>('sessionInfo', null);
-        this.activeSessions = localSession ? [localSession] : [];
-      }
-    }
 
     this.selectedTaskId = this.tasks[0]?.id ?? 't1';
     this.selectedDocumentId = this.documents[0]?.id ?? 'd1';
+
+    // Authentication is restored explicitly by restoreSession() against the backend.
   }
 
   private pendingTaskUndos = new Map<string, { task: Task; auditId: string }>();
@@ -100,7 +80,7 @@ export class AppController {
   }
 
   get isAuthenticated(): boolean {
-    return Boolean(this.storageService.load<string | null>('sessionToken', null) && this.storageService.load<string | null>('sessionUserId', null));
+    return this.authenticated;
   }
 
   private emitToast(toast: AppToast) {
@@ -137,23 +117,6 @@ export class AppController {
 
   get unreadNotificationsCount() {
     return this.notifications.filter((notification) => notification.unread).length;
-  }
-
-  private async createCredential(secret: string): Promise<SecretCredential> {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const secretBytes = new TextEncoder().encode(secret);
-    const key = await crypto.subtle.importKey('raw', secretBytes, 'PBKDF2', false, ['deriveBits']);
-    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, key, 256);
-    return { salt: Array.from(salt, (byte) => byte.toString(16).padStart(2, '0')).join(''), hash: Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('') };
-  }
-
-  private async credentialMatches(secret: string, credential: SecretCredential): Promise<boolean> {
-    const salt = Uint8Array.from(credential.salt.match(/.{1,2}/g) ?? [], (byte) => Number.parseInt(byte, 16));
-    const secretBytes = new TextEncoder().encode(secret);
-    const key = await crypto.subtle.importKey('raw', secretBytes, 'PBKDF2', false, ['deriveBits']);
-    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, key, 256);
-    const actualHash = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
-    return actualHash === credential.hash;
   }
 
   private addAuditEntry(action: string, entity: string): void {
@@ -204,37 +167,41 @@ export class AppController {
   }
 
   private getSessionToken(): string | null {
-    return this.storageService.load<string | null>('sessionToken', null);
+    return this.accessToken;
+  }
+
+  async restoreSession(): Promise<void> {
+    try {
+      const payload = await this.apiClient.getCurrentSession();
+      const record = payload?.user && typeof payload.user === 'object' ? payload.user : payload;
+      const user = record ? this.normalizeUserResponse(record) : null;
+      if (!user) throw new Error('No authenticated session');
+      this.applyAuthenticatedUser(user);
+    } catch {
+      this.authenticated = false;
+      this.accessToken = null;
+    }
+    this.notify();
   }
 
   async loadActiveSessions(): Promise<ActiveSession[]> {
-    const token = this.getSessionToken();
-    if (!token) { this.activeSessions = []; this.notify(); return this.activeSessions; }
+    if (!this.authenticated) { this.activeSessions = []; return this.activeSessions; }
     try {
-      this.activeSessions = await this.apiClient.listSessions(token);
+      this.activeSessions = await this.apiClient.listSessions(this.getSessionToken());
     } catch {
-      let localSession = this.storageService.load<ActiveSession | null>('sessionInfo', null);
-      if (!localSession) {
-        const now = this.user.lastActive ?? new Date().toISOString();
-        localSession = { id: token, device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'This browser', createdAt: now, lastActive: now, isCurrent: true };
-        this.storageService.save('sessionInfo', localSession);
-      }
-      this.activeSessions = [localSession];
+      this.activeSessions = [];
     }
     this.notify();
     return this.activeSessions;
   }
 
   async revokeAllSessions(): Promise<boolean> {
-    const token = this.getSessionToken();
     try {
-      if (token) await this.apiClient.revokeAllSessions(token);
-      this.activeSessions = [];
-      this.logout();
+      await this.apiClient.revokeAllSessions(this.getSessionToken());
+      await this.logout();
       return true;
     } catch {
-      this.activeSessions = [];
-      this.logout();
+      await this.logout();
       this.lastError = 'This device was signed out, but the server could not revoke other sessions.';
       this.notify();
       return false;
@@ -405,76 +372,69 @@ export class AppController {
       return false;
     }
 
-    const credential = this.passwordCredentials[this.user.id];
-    const currentPasswordMatches = credential ? await this.credentialMatches(currentPassword, credential) : currentPassword === 'password';
-    if (!currentPasswordMatches) {
-      this.lastError = 'Your current password is incorrect.';
+    try {
+      await this.apiClient.changePassword(currentPassword, newPassword, this.getSessionToken());
+      this.addAuditEntry('Changed Password', this.user.email);
+      this.lastError = null;
+      this.persist();
+      this.notify();
+      return true;
+    } catch (error) {
+      this.lastError = error instanceof ApiError ? error.message : 'Unable to change password.';
       this.notify();
       return false;
     }
-
-    this.passwordCredentials[this.user.id] = await this.createCredential(newPassword);
-    this.storageService.save('passwordCredentials', this.passwordCredentials);
-    this.addAuditEntry('Changed Password', this.user.email);
-    this.lastError = null;
-    this.persist();
-    this.notify();
-    return true;
   }
 
-  beginTwoFactorSetup(): string {
-    return generateTotpSecret();
-  }
-
-  async confirmTwoFactorSetup(secret: string, verificationCode: string): Promise<string[] | null> {
-    const setupCounter = await matchingTotpCounter(secret, verificationCode);
-    if (setupCounter === null) {
-      this.lastError = 'That code is invalid or expired. Check your authenticator app and try again.';
+  async beginTwoFactorSetup(): Promise<string | null> {
+    try {
+      const enrollment = await this.apiClient.beginTotpEnrollment(this.getSessionToken());
+      if (!enrollment?.secret) throw new Error('No enrollment secret returned');
+      return enrollment.secret;
+    } catch (error) {
+      this.lastError = error instanceof ApiError ? error.message : 'Unable to start authenticator setup.';
       this.notify();
       return null;
     }
-    const recoveryCodes = generateRecoveryCodes();
-    const recoveryCredentials = await Promise.all(recoveryCodes.map((code) => this.createCredential(code.replace('-', ''))));
-    this.twoFactorCredentials[this.user.id] = { secret, recoveryCodes: recoveryCredentials, lastUsedTotpStep: setupCounter };
-    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
-    this.storageService.remove('twoFactorCredentials');
-    this.addAuditEntry('Enabled Two-Factor Authentication', this.user.email);
-    this.lastError = null;
-    this.persist();
-    this.notify();
-    return recoveryCodes;
   }
 
-  disableTwoFactor(): void {
-    delete this.twoFactorCredentials[this.user.id];
-    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
-    this.addAuditEntry('Disabled Two-Factor Authentication', this.user.email);
-    this.lastError = null;
-    this.persist();
-    this.notify();
+  async confirmTwoFactorSetup(_secret: string, verificationCode: string): Promise<string[] | null> {
+    try {
+      const recoveryCodes = await this.apiClient.confirmTotpEnrollment(verificationCode, this.getSessionToken());
+      if (!recoveryCodes) return null;
+      this.twoFactorEnabled = true;
+      this.twoFactorEnabledByUser.add(this.user.id);
+      this.addAuditEntry('Enabled Two-Factor Authentication', this.user.email);
+      this.lastError = null;
+      this.notify();
+      return recoveryCodes;
+    } catch (error) {
+      this.lastError = error instanceof ApiError ? error.message : 'That code is invalid or expired.';
+      this.notify();
+      return null;
+    }
+  }
+
+  async disableTwoFactor(): Promise<void> {
+    try {
+      await this.apiClient.disableTotp(this.getSessionToken());
+      this.twoFactorEnabled = false;
+      this.twoFactorEnabledByUser.delete(this.user.id);
+      this.addAuditEntry('Disabled Two-Factor Authentication', this.user.email);
+      this.lastError = null;
+      this.notify();
+    } catch (error) {
+      this.lastError = error instanceof ApiError ? error.message : 'Unable to disable two-factor authentication.';
+      this.notify();
+    }
   }
 
   hasTwoFactorEnabled(userId = this.user.id): boolean {
-    return Boolean(this.twoFactorCredentials[userId]?.secret);
+    if (userId === this.user.id) return this.twoFactorEnabled;
+    return this.twoFactorEnabledByUser.has(userId);
   }
 
-  async verifyTwoFactorCode(userId: string, code: string): Promise<boolean> {
-    const credential = this.twoFactorCredentials[userId];
-    if (!credential?.secret) return true;
-    const matchedCounter = await matchingTotpCounter(credential.secret, code);
-    if (matchedCounter !== null) {
-      if (matchedCounter <= (credential.lastUsedTotpStep ?? -1)) return false;
-      credential.lastUsedTotpStep = matchedCounter;
-      this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
-      return true;
-    }
-    const normalized = code.toUpperCase().replace(/[^A-Z2-7]/g, '');
-    if (normalized.length !== 16) return false;
-    const matchIndex = await Promise.all(credential.recoveryCodes.map((entry) => this.credentialMatches(normalized, entry)))
-      .then((matches) => matches.findIndex(Boolean));
-    if (matchIndex < 0) return false;
-    credential.recoveryCodes.splice(matchIndex, 1);
-    this.storageService.save('twoFactorSettings', this.twoFactorCredentials);
+  async verifyTwoFactorCode(_userId: string, _code: string): Promise<boolean> {
     return true;
   }
 
@@ -785,40 +745,34 @@ export class AppController {
     this.notify();
   }
 
+  private applyAuthenticatedUser(user: User): void {
+    this.user = new User(user.id, user.name, user.email, user.role, user.status, new Date().toISOString());
+    this.users = this.users.some((candidate) => candidate.id === this.user.id)
+      ? this.users.map((candidate) => candidate.id === this.user.id ? this.user : candidate)
+      : [this.user, ...this.users];
+    this.authenticated = true;
+  }
+
   async login(email: string, password: string, verificationCode?: string): Promise<boolean> {
     try {
-      const found = this.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase());
-      if (!found) {
-        this.lastError = 'Invalid credentials';
-        this.notify();
-        return false;
-      }
-
-      const passwordCredential = this.passwordCredentials[found.id];
-      const passwordMatches = passwordCredential ? await this.credentialMatches(password, passwordCredential) : password === 'password';
-      if (!passwordMatches) {
-        this.lastError = 'Invalid credentials';
-        this.notify();
-        return false;
-      }
-
-      if (this.hasTwoFactorEnabled(found.id) && (!verificationCode || !(await this.verifyTwoFactorCode(found.id, verificationCode)))) {
+      const payload = await this.apiClient.login(email.trim(), password, verificationCode);
+      if (payload?.requiresTwoFactor || payload?.mfaRequired) {
         this.lastError = 'Enter a valid authenticator or recovery code.';
         this.notify();
         return false;
       }
+      const record = payload?.user && typeof payload.user === 'object' ? payload.user : payload;
+      const user = record ? this.normalizeUserResponse(record) : null;
+      if (!user) {
+        this.lastError = 'Invalid credentials';
+        this.notify();
+        return false;
+      }
 
-      this.user = new User(found.id, found.name, found.email, found.role, found.status, new Date().toISOString());
-      this.users = this.users.some((candidate) => candidate.id === this.user.id)
-        ? this.users.map((candidate) => candidate.id === this.user.id ? this.user : candidate)
-        : [this.user, ...this.users];
-      const token = `token-${this.user.id}-${Date.now()}`;
-      this.storageService.save('sessionToken', token);
-      this.storageService.save('sessionUserId', this.user.id);
-      const now = new Date().toISOString();
-      const session: ActiveSession = { id: token, device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'This browser', createdAt: now, lastActive: now, isCurrent: true };
-      this.activeSessions = [session];
-      this.storageService.save('sessionInfo', session);
+      this.accessToken = payload?.accessToken ?? payload?.token ?? null;
+      this.applyAuthenticatedUser(user);
+      this.twoFactorEnabled = Boolean((payload as unknown as { mfaEnabled?: boolean })?.mfaEnabled);
+      if (this.twoFactorEnabled) this.twoFactorEnabledByUser.add(user.id);
       this.lastError = null;
       this.auditLogs = [
         new AuditLog(`a${Date.now()}`, new Date().toISOString(), this.user.name, 'Logged In', 'Session', '127.0.0.1'),
@@ -828,20 +782,26 @@ export class AppController {
       this.notify();
       this.routerNavigate?.(routePaths.dashboard, { replace: true });
       return true;
-    } catch {
-      this.lastError = 'Login error';
+    } catch (error) {
+      this.lastError = error instanceof ApiError ? error.message : 'Login error';
       this.notify();
       return false;
     }
   }
 
-  logout(): void {
-    this.storageService.save('sessionToken', null as any);
-    this.storageService.save('sessionUserId', null as any);
-    this.storageService.remove('sessionInfo');
+  async logout(): Promise<void> {
+    try {
+      await this.apiClient.logout(this.getSessionToken());
+    } catch {
+      // Local sign-out still completes if the server request fails.
+    }
+    this.accessToken = null;
+    this.authenticated = false;
     this.activeSessions = [];
+    this.storageService.remove('sessionInfo');
     this.lastError = null;
     this.user = User.fromSeed(currentUser);
+    this.twoFactorEnabled = false;
     this.notify();
     this.routerNavigate?.(routePaths.login, { replace: true });
   }

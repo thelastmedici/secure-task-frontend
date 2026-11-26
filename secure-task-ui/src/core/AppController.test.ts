@@ -1,5 +1,5 @@
 import React from 'react';
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppController } from './AppController';
@@ -8,9 +8,40 @@ import { StorageService } from '../services/StorageService';
 import { AppProvider } from './AppContext';
 import { TaskDetailPage } from '../pages/TaskDetailPage';
 
+let serverPassword = 'password';
+
 describe('AppController navigation and auth gating', () => {
   beforeEach(() => {
     new StorageService().clear();
+    serverPassword = 'password';
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      const body = init?.body ? JSON.parse(String(init.body)) as { email?: string; password?: string; currentPassword?: string; newPassword?: string } : {};
+      if (url.endsWith('/auth/login') && method === 'POST') {
+        if (body.email?.toLowerCase() !== 'joshua@example.com' || body.password !== serverPassword) {
+          return new Response(JSON.stringify({ message: 'Invalid credentials' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+          user: { id: 'u1', name: 'Joshua Carter', email: 'joshua@example.com', role: 'Admin', status: 'Active' },
+          accessToken: 'server-access-token',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.endsWith('/auth/password') && method === 'PATCH') {
+        if (body.currentPassword !== serverPassword) {
+          return new Response(JSON.stringify({ message: 'Your current password is incorrect.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+        serverPassword = body.newPassword ?? serverPassword;
+        return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.endsWith('/auth/logout') && method === 'POST') {
+        return new Response('', { status: 204 });
+      }
+      if (url.endsWith('/auth/me') && method === 'GET') {
+        return new Response(JSON.stringify({ user: null }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
   });
   it('redirects non-admin from audit-logs to dashboard', () => {
     const c = new AppController();
@@ -46,16 +77,16 @@ describe('AppController navigation and auth gating', () => {
     expect(events).toEqual([1, 1]);
   });
 
-  it('login succeeds with correct credentials and persists token', async () => {
+  it('login succeeds through the backend without persisting a session token', async () => {
     const c = new AppController();
     const locations: string[] = [];
     c.setRouterNavigator((to) => locations.push(to));
     const ok = await c.login('joshua@example.com', 'password');
     expect(ok).toBe(true);
     const storage = new StorageService();
-    const raw = storage.load<string | null>('sessionToken', null);
-    expect(raw).toBeTruthy();
+    expect(storage.load<string | null>('sessionToken', null)).toBeNull();
     expect(locations).toEqual(['/']);
+    expect(c.isAuthenticated).toBe(true);
   });
 
   it('login fails with wrong credentials and sets error', async () => {
@@ -229,9 +260,8 @@ describe('AppController navigation and auth gating', () => {
     const locations: string[] = [];
     c.setRouterNavigator((to) => locations.push(to));
     await c.login('joshua@example.com', 'password');
-    c.logout();
+    await c.logout();
     expect(locations.at(-1)).toBe('/login');
-    const storage = new StorageService();
-    expect(storage.load<string | null>('sessionToken', null)).toBeNull();
+    expect(c.isAuthenticated).toBe(false);
   });
 });

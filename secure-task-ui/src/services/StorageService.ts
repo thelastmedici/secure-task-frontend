@@ -57,23 +57,33 @@ export class StorageService {
     try { this.storage.removeItem(key); } catch { /* no-op in restricted browsing modes */ }
   }
 
+  removeAuthState(): void {
+    if (!this.storage) return;
+
+    try {
+      this.storage.removeItem('sessionToken');
+      this.storage.removeItem('sessionUserId');
+      this.storage.removeItem('sessionInfo');
+      this.storage.removeItem('passwordCredentials');
+      this.storage.removeItem('twoFactorCredentials');
+      this.storage.removeItem('twoFactorSettings');
+    } catch {
+      // no-op to keep the UI resilient in restricted browsing modes
+    }
+  }
+
   clear(): void {
     if (!this.storage) return;
 
     try {
       if ('removeItem' in this.storage) {
-        this.storage.removeItem('sessionToken');
-        this.storage.removeItem('sessionUserId');
-        this.storage.removeItem('sessionInfo');
+        this.removeAuthState();
         this.storage.removeItem('tasks');
         this.storage.removeItem('documents');
         this.storage.removeItem('notifications');
         this.storage.removeItem('users');
         this.storage.removeItem('auditLogs');
         this.storage.removeItem('workspaceSettings');
-        this.storage.removeItem('passwordCredentials');
-        this.storage.removeItem('twoFactorCredentials');
-        this.storage.removeItem('twoFactorSettings');
       }
     } catch {
       // no-op to keep the UI resilient in restricted browsing modes

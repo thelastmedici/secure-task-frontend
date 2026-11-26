@@ -87,6 +87,10 @@ function App() {
     root.style.colorScheme = theme;
   }, []);
 
+  useEffect(() => {
+    void controller.restoreSession();
+  }, [controller]);
+
   return (
     <BrowserRouter>
       <AppProvider controller={controller}>

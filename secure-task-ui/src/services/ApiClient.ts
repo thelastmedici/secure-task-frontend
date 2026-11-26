@@ -15,6 +15,16 @@ export class ApiError extends Error {
   }
 }
 
+export type LoginResponse = {
+  user?: Partial<User>;
+  accessToken?: string;
+  token?: string;
+  requiresTwoFactor?: boolean;
+  mfaRequired?: boolean;
+};
+
+export type TotpEnrollment = { secret: string; issuer?: string; account?: string };
+
 export class ApiClient {
   private readonly baseUrl: string;
 
@@ -45,6 +55,40 @@ export class ApiClient {
 
   ssoUrl(provider: 'google' | 'microsoft'): string {
     return `${this.baseUrl}/auth/sso/${provider}`;
+  }
+
+  async login(email: string, password: string, verificationCode?: string): Promise<LoginResponse | null> {
+    return this.request<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: { email, password, ...(verificationCode ? { code: verificationCode } : {}) },
+    });
+  }
+
+  async getCurrentSession(accessToken?: string | null): Promise<ApiUser | null> {
+    return this.request<ApiUser>('/auth/me', { method: 'GET', accessToken });
+  }
+
+  async logout(accessToken?: string | null): Promise<void> {
+    await this.request('/auth/logout', { method: 'POST', accessToken });
+  }
+
+  async changePassword(currentPassword: string, newPassword: string, accessToken?: string | null): Promise<void> {
+    await this.request('/auth/password', { method: 'PATCH', body: { currentPassword, newPassword }, accessToken });
+  }
+
+  async beginTotpEnrollment(accessToken?: string | null): Promise<TotpEnrollment | null> {
+    return this.request<TotpEnrollment>('/auth/totp/enrollments', { method: 'POST', accessToken });
+  }
+
+  async confirmTotpEnrollment(code: string, accessToken?: string | null): Promise<string[] | null> {
+    const payload = await this.request<{ recoveryCodes?: string[] }>('/auth/totp/enrollments/confirm', {
+      method: 'POST', body: { code }, accessToken,
+    });
+    return Array.isArray(payload?.recoveryCodes) ? payload.recoveryCodes : [];
+  }
+
+  async disableTotp(accessToken?: string | null): Promise<void> {
+    await this.request('/auth/totp', { method: 'DELETE', accessToken });
   }
 
   private async request<T>(path: string, options: ApiOptions): Promise<T | null> {
